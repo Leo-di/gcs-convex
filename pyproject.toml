@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "semantic-gcs-drake"
+version = "0.1.0"
+description = "A minimal Drake scene for semantic motion planning with GCS."
+requires-python = ">=3.12"
+dependencies = [
+  "drake",
+  "numpy",
+  "PyYAML",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
