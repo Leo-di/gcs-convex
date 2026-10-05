@@ -9,6 +9,20 @@ scenario:
     - cup_in_dropoff_bin
   near_pickup_distance: 1.0
 
+semantic_monitor:
+  support_tolerance_m: 0.008
+  pose_tolerance_m: 0.008
+  pose_tolerance_rad: 0.06
+  gripper_tolerance_m: 0.001
+  retreat_distance_m: 0.15
+
+validation:
+  # Reject penetration or missing bilateral fingertip contact.
+  require_grasp_geometry: true
+
+ik_solver:
+  max_restarts: 12
+
 world:
   floor:
     name: floor
@@ -83,6 +97,8 @@ objects:
     color: [0.22, 0.25, 0.29, 1.0]
     shelf_color: [0.80, 0.82, 0.84, 1.0]
   cup:
+    # Handleless cylindrical cup: visual and collision envelope agree.
+    visual_handle: false
     radius: 0.05
     height: 0.18
     center: [1.60, 0.65, 0.84]
@@ -131,8 +147,9 @@ gripper:
   base_frame: body
   mount_translation: [0.0, 0.0, 0.114]
   mount_rpy: [1.5707963267948966, 0.0, 1.5707963267948966]
-  open_positions: [-0.045, 0.045]
-  closed_positions: [-0.006, 0.006]
+  contact_filter: fingertips
+  open_positions: [-0.055, 0.055]
+  closed_positions: [-0.0475, 0.0475]
   grasp_point_in_body: [0.0, 0.10, 0.0]
 
 semantic_regions:
@@ -182,19 +199,21 @@ semantic_product_planning:
   goal_mode: delivered
   region_predicates:
     room1_central_lane: [base_in_room1]
-    room1_upper_lane: [base_in_room1, at_dropoff]
+    room1_upper_lane: [base_in_room1]
     doorway_lane: [inside_doorway]
-    room2_pickup_lane: [base_in_room2, near_pickup_table]
+    room2_pickup_lane: [base_in_room2]
   transitions:
     - name: pick_cup
       source: seeking_pickup
       target: carrying_cup
-      requires: [base_in_room2, near_pickup_table]
+      requires: [base_in_room2]
+      candidate_regions: [room2_pickup_lane]
       cost: 0.25
     - name: place_cup
       source: carrying_cup
       target: delivered
-      requires: [base_in_room1, at_dropoff]
+      requires: [base_in_room1]
+      candidate_regions: [room1_upper_lane]
       cost: 0.25
 
 whole_body_planning:
@@ -251,6 +270,16 @@ iris_np2_cover:
   holdout_mixing_steps: 8
   holdout_random_seed: 9200
 
+manipulation_gcs:
+  # Mode-specific IRIS-NP2 regions + 10-D GCS for pregrasp/grasp/release/
+  # retreat. Region options (epsilon, particles, holdout audit) are shared
+  # with iris_np2_cover; only the phase-specific knobs live here.
+  enabled: true
+  joint_radius: 0.30
+  seed_distance_threshold: 0.35
+  total_delta: 0.05
+  max_bridges: 8
+
 reference_path:
   - [-3.0, 0.0, 0.0]
   - [-2.0, 0.0, 0.0]
@@ -262,13 +291,33 @@ reference_path:
   - [1.20, -0.10, 0.0]
 
 pick_task:
+  candidate_source: auto
+  candidate_generation:
+    xy_step_m: 0.10
+    boundary_margin_m: 0.05
+    preferred_standoff_m: 0.85
+    yaw_samples_rad: [0.0]
+    max_candidates: 6
+  # Ordered base configurations for the same cup/grasp-point target.
+  # A candidate is accepted only after full delivery validation.
+  candidates:
+    - name: pickup_x1_0
+      base_q: [1.00, -0.10, 0.0]
+    - name: pickup_x1_1
+      base_q: [1.10, -0.10, 0.0]
+    - name: pickup_x1_2
+      base_q: [1.20, -0.10, 0.0]
   pregrasp_offset: [0.0, 0.0, 0.22]
-  grasp_offset: [0.0, 0.0, 0.02]
+  grasp_offset: [0.0, 0.0, 0.06]
+  gripper_rpy: [0.0, 0.0, 0.0]
+  orientation_tolerance: 0.005
   lift_offset: [0.0, 0.0, 0.30]
-  position_tolerance: 0.005
+  position_tolerance: 0.0002
   minimum_clearance: 0.003
 
 delivery_task:
+  place_position_tolerance: 0.002
+  place_orientation_tolerance: 0.02
   carry_cup_height: 1.10
   transfer_path:
     - [1.20, -0.10, 0.0]

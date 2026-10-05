@@ -13,14 +13,16 @@ from pydrake.geometry import (
     Cylinder,
     GeometrySet,
     StartMeshcat,
+    AddCompliantHydroelasticProperties, AddRigidHydroelasticProperties,
+    ProximityProperties, RoleAssign,
 )
 from pydrake.math import RigidTransform, RollPitchYaw
 from pydrake.multibody.parsing import Parser
 from pydrake.multibody.plant import (
-    CoulombFriction,
+    CoulombFriction, ContactModel, DiscreteContactApproximation,
 )
 from pydrake.multibody.tree import (
-    FixedOffsetFrame,
+    FixedOffsetFrame, PdControllerGains,
     PlanarJoint,
     SpatialInertia,
     UnitInertia,
@@ -446,6 +448,8 @@ def _add_detailed_cup(
     height: float,
     center: list[float],
     color: list[float],
+    collision: bool = True,
+    visual_handle: bool = True,
 ) -> Any:
     """Add a floating cylindrical mug with a visual handle."""
 
@@ -469,13 +473,11 @@ def _add_detailed_cup(
         f"{name}_body_visual",
         rgba,
     )
-    plant.RegisterCollisionGeometry(
-        body,
-        RigidTransform(),
-        cup_shape,
-        f"{name}_collision",
-        CoulombFriction(0.9, 0.8),
-    )
+    if collision:
+        plant.RegisterCollisionGeometry(
+            body, RigidTransform(), cup_shape, f"{name}_collision",
+            CoulombFriction(0.9, 0.8),
+        )
 
     handle_thickness = 0.014
     handle_reach = 0.055
@@ -484,7 +486,7 @@ def _add_detailed_cup(
             (Box(handle_reach, handle_thickness, handle_thickness), [radius + handle_reach / 2.0, 0.0, 0.045]),
             (Box(handle_reach, handle_thickness, handle_thickness), [radius + handle_reach / 2.0, 0.0, -0.045]),
             (Box(handle_thickness, handle_thickness, 0.10), [radius + handle_reach, 0.0, 0.0]),
-        ]
+        ] if visual_handle else []
     ):
         plant.RegisterVisualGeometry(
             body,
@@ -623,10 +625,14 @@ def build_scene(
     *,
     attached_cup_X_GC: RigidTransform | None = None,
     visualize: bool = True,
+    config: dict | None = None,
+    dynamics_time_step: float | None = None,
 ) -> SceneHandles:
-    config = load_scene_config()
+    config = load_scene_config() if config is None else config
     meshcat = StartMeshcat() if visualize else None
-    robot_builder = RobotDiagramBuilder(time_step=0.0)
+    if dynamics_time_step is not None and (dynamics_time_step <= 0 or attached_cup_X_GC is not None):
+        raise ValueError("Dynamic execution requires a positive step and a free cup")
+    robot_builder = RobotDiagramBuilder(time_step=dynamics_time_step or 0.0)
     builder = robot_builder.builder()
     plant = robot_builder.plant()
     scene_graph = robot_builder.scene_graph()
@@ -671,6 +677,8 @@ def build_scene(
     cup_body = _add_detailed_cup(
         plant,
         name="cup",
+        collision=not (attached_cup_X_GC is not None
+                       and config["gripper"].get("contact_filter") == "fingertips"),
         **cup_spec,
     )
     cup_initial_pose = RigidTransform(cup_spec["center"])
@@ -795,31 +803,37 @@ def build_scene(
             attached_cup_X_GC,
         )
 
+    gripper_geometry_ids = [
+        geometry_id
+        for body_index in plant.GetBodyIndices(gripper_instance)
+        for geometry_id in plant.GetCollisionGeometriesForBody(plant.get_body(body_index))
+    ]
+    narrow_contact_filter = gripper_spec.get("contact_filter") == "fingertips"
+    allowed_cup_contact_ids = gripper_geometry_ids
+    if narrow_contact_filter:
+        inspector = scene_graph.model_inspector()
+        allowed_cup_contact_ids = [
+            gid for gid in gripper_geometry_ids
+            if any(inspector.GetName(gid).endswith(suffix)
+                   for suffix in ("_top", "_bottom", "_left", "_right"))
+        ]
+        if len(allowed_cup_contact_ids) != 8:
+            raise ValueError("Expected eight named WSG fingertip contact spheres")
     # The base is supported by the floor, so this intentional contact should
     # not count as an obstacle collision or dominate the clearance residual.
-    scene_graph.collision_filter_manager().Apply(
-        CollisionFilterDeclaration()
-        .ExcludeBetween(
-            GeometrySet(plant.GetCollisionGeometriesForBody(floor_body)),
-            GeometrySet(plant.GetCollisionGeometriesForBody(base_body)),
-        )
-        .ExcludeBetween(
+    filters = CollisionFilterDeclaration().ExcludeBetween(
+        GeometrySet(plant.GetCollisionGeometriesForBody(floor_body)),
+        GeometrySet(plant.GetCollisionGeometriesForBody(base_body)),
+    )
+    if dynamics_time_step is None:
+        filters.ExcludeBetween(
             GeometrySet(plant.GetCollisionGeometriesForBody(table_body)),
             GeometrySet(plant.GetCollisionGeometriesForBody(cup_body)),
-        )
-        .ExcludeBetween(
+        ).ExcludeBetween(
             GeometrySet(plant.GetCollisionGeometriesForBody(cup_body)),
-            GeometrySet(
-                [
-                    geometry_id
-                    for body_index in plant.GetBodyIndices(gripper_instance)
-                    for geometry_id in plant.GetCollisionGeometriesForBody(
-                        plant.get_body(body_index)
-                    )
-                ]
-            ),
+            GeometrySet(allowed_cup_contact_ids),
         )
-    )
+    scene_graph.collision_filter_manager().Apply(filters)
     if attached_cup_geometry_id is not None:
         robot_geometry_ids = [
             geometry_id
@@ -835,13 +849,44 @@ def build_scene(
             CollisionFilterDeclaration()
             .ExcludeBetween(
                 GeometrySet([attached_cup_geometry_id]),
-                GeometrySet(robot_geometry_ids),
+                # Drake's planning checker requires uniform body-pair filters.
+                # Finger boxes remain covered by the unfiltered path audit.
+                # Crucially, payload versus arm/base is no longer suppressed.
+                GeometrySet(gripper_geometry_ids if narrow_contact_filter else robot_geometry_ids),
             )
             .ExcludeBetween(
                 GeometrySet(free_cup_geometry_ids),
                 GeometrySet(robot_geometry_ids),
             )
         )
+    if dynamics_time_step is not None:
+        # SAP does not support multi-DOF joint limit constraints. These are
+        # workspace planning bounds, not physical end stops on the mobile base.
+        base_joint.set_position_limits(np.full(3, -np.inf), np.full(3, np.inf))
+        plant.set_contact_model(ContactModel.kPoint)
+        plant.set_discrete_contact_approximation(DiscreteContactApproximation.kSap)
+        plant.set_penetration_allowance(0.0001)
+        if config.get("execution_dynamics", {}).get("hydroelastic_support", False):
+            # A finite contact patch avoids balancing a flat cup bottom on a
+            # single point. Unannotated pairs retain point-contact fallback.
+            plant.set_contact_model(ContactModel.kHydroelasticWithFallback)
+            inspector = scene_graph.model_inspector()
+            for name in ("cup", "table", "dropoff_table", "dropoff_bin", "floor"):
+                body = plant.GetBodyByName(name)
+                for gid in plant.GetCollisionGeometriesForBody(body):
+                    props = ProximityProperties(inspector.GetProximityProperties(gid))
+                    if name == "cup":
+                        AddCompliantHydroelasticProperties(0.01, 1e7, props)
+                    else:
+                        AddRigidHydroelasticProperties(0.01, props)
+                    scene_graph.AssignRole(plant.get_source_id(), gid, props, RoleAssign.kReplace)
+        for index in plant.GetJointActuatorIndices():
+            actuator = plant.get_joint_actuator(index)
+            if actuator.model_instance() == arm_instance:
+                actuator.set_controller_gains(PdControllerGains(p=3000.0, d=100.0))
+            elif actuator.model_instance() == gripper_instance:
+                actuator.set_effort_limit(20.0)
+                actuator.set_controller_gains(PdControllerGains(p=5000.0, d=20.0))
     plant.Finalize()
 
     if visualize:
@@ -884,6 +929,7 @@ def build_scene(
     set_robot_configuration(scene, config["robot"]["start"])
     plant.SetFreeBodyPose(plant_context, cup_body, cup_initial_pose)
     if visualize:
+        meshcat.SetCameraPose([6.0, -8.0, 10.0], [-0.5, 0.0, 0.5])
         diagram.ForcedPublish(root_context)
     return scene
 

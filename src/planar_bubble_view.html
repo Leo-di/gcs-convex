@@ -1,0 +1,40 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>二维安全圆盘与语义 GCS</title>
+<style>
+body{margin:0;background:#f1f5f9;color:#172b43;font:16px system-ui,sans-serif}main{max-width:1100px;margin:auto;padding:28px}h1{font-size:28px;margin-bottom:8px}p{line-height:1.7}.panel{background:white;border-radius:16px;padding:20px;margin:16px 0;border:1px solid #dbe4ed}.controls{display:flex;gap:20px;align-items:center;flex-wrap:wrap}button{background:#163c5a;color:white;border:0;border-radius:8px;padding:10px 20px;cursor:pointer}input[type=range]{flex:1;min-width:160px}svg{width:100%;max-height:650px;background:#fafbfc}label{cursor:pointer}.stats{display:flex;gap:30px;flex-wrap:wrap}.stats b{font-size:23px;display:block}small{color:#536779}a{color:#087a85}
+</style><main><h1>二维安全圆盘 × 语义状态 × GCS</h1>
+<p>空手走窄门，取物后因尺寸增大改走宽门。蓝色为空手路径，橙色为携物路径。区域由对应状态的碰撞几何生成，通道由 GCS 选择。</p>
+<div class="panel stats" id="stats"></div>
+<div class="panel"><div class="controls"><label>区域状态 <select id="coverMode"><option value="auto">跟随机器人</option><option value="empty">空手 · 半径 0.12 m</option><option value="carrying">携物 · 半径 0.42 m</option><option value="both">两种状态对比</option></select></label><label><input type="checkbox" id="disks" checked>安全圆盘</label><label><input type="checkbox" id="edges">相交关系</label><label><input type="checkbox" id="selected" checked>路径所在圆盘</label></div>
+<svg id="scene" viewBox="-4.3 -3.3 7.6 6.6" role="img" aria-label="双房间地图、安全圆盘覆盖和 GCS 规划路径"></svg>
+<div class="controls"><button id="play">播放</button><input id="position" type="range" min="0" value="0"><span id="mode"></span></div></div>
+<div class="panel"><strong>任务状态：</strong>空手 → 在取物点拾取 → 携物 → 在放置点完成<p id="modelNote">这是二维圆形机器人实验：空手半径 0.12 m，携物占据包络半径 0.42 m。窄门宽 0.70 m，宽门宽 1.50 m。携物直径 0.84 m，不能通过窄门。安全圆盘表示机器人中心的可行区域，并已扣除相应实体半径和 0.06 m 安全裕量。取放仍是抽象动作，圆盘只覆盖部分自由空间。</p><p id="solverNote">固定取物点将任务分成空手与携物两次 Drake GCS 求解，均使用凸松弛与路径取整；不是联合选择动作位置。已检查每段直线路径的两个端点位于同一安全圆盘内，并额外采样检查机器人外缘的净空；不宣称全局最优或真实抓取验证。</p><a href="result.json">查看完整结果和语义轨迹 JSON</a></div>
+</main><script>
+const d=__DATA__,svg=document.getElementById('scene'),NS='http://www.w3.org/2000/svg';
+function el(tag,attrs,parent=svg){const e=document.createElementNS(NS,tag);for(const[k,v]of Object.entries(attrs))e.setAttribute(k,v);parent.appendChild(e);return e}
+function circle(p,r,attrs={},parent=svg){return el('circle',{cx:p[0],cy:-p[1],r,...attrs},parent)}
+function line(a,b,attrs={},parent=svg){return el('line',{x1:a[0],y1:-a[1],x2:b[0],y2:-b[1],...attrs},parent)}
+function label(p,t,color='#263c50'){const e=el('text',{x:p[0],y:-p[1],fill:color,'font-size':.16});e.textContent=t}
+el('rect',{x:-4,y:-3,width:7,height:6,fill:'#fff',stroke:'#718096','stroke-width':.025});
+for(const[a,b,c,e]of d.obstacles)el('rect',{x:a,y:-e,width:c-a,height:e-b,fill:'#69798c'});
+const layers={},colors={empty:'#2563eb',carrying:'#e77820'};
+for(const mode of ['empty','carrying']){
+ const cover=d.covers[mode],dg=el('g',{}),eg=el('g',{}),sg=el('g',{});
+ cover.centers.forEach((c,i)=>circle(c,cover.radii[i],{fill:colors[mode],'fill-opacity':.025,stroke:colors[mode],'stroke-opacity':.3,'stroke-width':.012},dg));
+ cover.edges.filter(([i,j])=>i<j).forEach(([i,j])=>line(cover.centers[i],cover.centers[j],{stroke:colors[mode],'stroke-opacity':.3,'stroke-width':.012},eg));
+ for(const i of new Set(d.segments.filter(s=>s.mode===mode).map(s=>s.disk)))circle(cover.centers[i],cover.radii[i],{fill:colors[mode],'fill-opacity':.08,stroke:colors[mode],'stroke-opacity':.6,'stroke-width':.02},sg);
+ layers[mode]={dg,eg,sg};
+}
+function layersUpdate(){const chosen=document.getElementById('coverMode').value,mode=d.trace[+slider.value].mode;for(const [name,groups]of Object.entries(layers)){const show=chosen==='both'||name===(chosen==='auto'?mode:chosen);for(const [key,id]of [['dg','disks'],['eg','edges'],['sg','selected']])groups[key].setAttribute('display',show&&document.getElementById(id).checked?'':'none')}}
+for(const s of d.segments)line(s.a,s.b,{stroke:s.mode==='empty'?'#2563eb':'#e77820','stroke-width':.045,'stroke-linecap':'round'});
+label([-3.8,2.65],'Room 1 · 大房间');label([.7,2.2],'Room 2 · 小房间');label([-.55,.5],'窄门 0.70 m');label([-.55,2.55],'宽门 1.50 m');
+for(const[p,name,color]of [[d.start,'起点','#2563eb'],[d.pickup,'取物','#893bd2'],[d.dropoff,'放置','#13995e']]){circle(p,.085,{fill:'white',stroke:color,'stroke-width':.035});label([p[0]+.13,p[1]+.1],name,color)}
+const robot=circle(d.start,d.body_radii.empty,{fill:'#2563eb','fill-opacity':.35,stroke:'#2563eb','stroke-width':.025});circle(d.start,.02,{fill:'#2563eb'});
+const slider=document.getElementById('position');slider.max=d.trace.length-1;
+let playing=false,last=0;const btn=document.getElementById('play');
+function update(){const i=+slider.value,row=d.trace[i];robot.setAttribute('cx',row.xy[0]);robot.setAttribute('cy',-row.xy[1]);robot.setAttribute('fill',colors[row.mode]);robot.setAttribute('stroke',d.case==='ignore_payload'&&row.mode==='carrying'?'#dc2626':colors[row.mode]);robot.setAttribute('r',d.body_radii[i===d.trace.length-1?'empty':row.mode]);document.getElementById('mode').textContent=i===d.trace.length-1?(d.audit && !d.audit.accepted?'路径结束 · 任务验收失败':'已放置 · 任务完成'):(row.mode==='empty'?'空手':'携物')+' · '+row.room;layersUpdate()}
+slider.oninput=update;btn.onclick=()=>{if(+slider.value===d.trace.length-1)slider.value=0;playing=!playing;btn.textContent=playing?'暂停':'播放';update()};
+function frame(t){if(playing&&t-last>30){slider.value=Math.min(+slider.value+2,d.trace.length-1);last=t;update();if(+slider.value===d.trace.length-1){playing=false;btn.textContent='重播'}}requestAnimationFrame(frame)}requestAnimationFrame(frame);
+for(const id of ['disks','edges','selected','coverMode'])document.getElementById(id).onchange=layersUpdate;
+if(d.case && d.case!=='full'){document.querySelector('main>p').textContent=d.case==='no_task'?'错误对照：直接到终点，未完成取物。':'错误对照：规划忽略携物尺寸，红色外缘表示真实携物包络；此路径不可执行。';document.getElementById('modelNote').textContent=d.case==='no_task'?'仅规划半径 0.12 m 的空手机器人。未执行取物，不存在实际携物阶段。':'错误模型：规划的两阶段半径都为 0.12 m，但独立检查与动画使用实际携物半径 0.42 m。此页安全圆盘仅对错误的规划模型成立，不能保证真实负载安全。';document.getElementById('solverNote').textContent=d.case==='no_task'?'一次 GCS 求起点到终点路径，几何检查通过，但任务顺序不满足。':'两次 GCS 保持取物顺序，但实际负载碰撞检查失败。负净空表示实体侵入障碍物，不能执行该路径。';document.querySelector('main>.panel:last-of-type').prepend(document.createTextNode('此页为失败对照，任务未通过验收。 '));}const m=d.metrics;document.getElementById('stats').innerHTML=`<div><b>${m.disks_by_mode.empty} / ${m.disks_by_mode.carrying}</b><small>空手 / 携物圆盘 · 共 ${m.mode_region_vertices} 个区域节点</small></div><div><b>${m.solve_seconds.toFixed(2)} s</b><small>${d.case==='no_task'?'一次 GCS':'两次 GCS 合计'} · ${m.solver}</small></div><div><b>${m.length.toFixed(2)} m</b><small>规划路径长度</small></div><div><b>${(m.sampled_min_body_clearance*100).toFixed(1)} cm</b><small>机器人外缘采样最小净空</small></div>`;update();
+</script></html>

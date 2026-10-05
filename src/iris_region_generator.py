@@ -398,12 +398,25 @@ def _grow_cover_region(
     spec: dict[str, Any],
     delta: float,
     index: int,
+    add_hyperplane_if_solve_fails: bool = True,
 ) -> IrisRegionResult:
     if not checker.CheckConfigCollisionFree(parameterization(seed)):
-        raise RuntimeError(f"IRIS cover seed {index} is in collision.")
+        error = RuntimeError(f"IRIS cover seed {index} is in collision.")
+        error.details = {"seed_index": index, "seed": seed.tolist(),
+                         "scope": "Rejected by padded carrying collision checker; not a proof that every route fails."}
+        set_robot_configuration(scene, seed[:3], seed[3:], scene.gripper_closed_positions)
+        query = scene.scene_graph.get_query_output_port().Eval(
+            scene.scene_graph.GetMyContextFromRoot(scene.root_context))
+        pairs = query.ComputeSignedDistancePairwiseClosestPoints(.1)
+        inspector = query.inspector()
+        error.details["raw_geometry"] = [
+            {"distance_m": float(p.distance), "a": inspector.GetName(p.id_A),
+             "b": inspector.GetName(p.id_B)}
+            for p in sorted(pairs, key=lambda p: p.distance)[:8]]
+        raise error
     options = IrisNp2Options()
     options.solver = IpoptSolver()
-    options.add_hyperplane_if_solve_fails = True
+    options.add_hyperplane_if_solve_fails = add_hyperplane_if_solve_fails
     options.parameterization = IrisParameterizationFunction(parameterization, 10)
     options.ray_sampler_options.num_particles_to_walk_towards = int(
         spec["ray_particles"]
@@ -479,7 +492,9 @@ def generate_carrying_iris_cover(
         cover_spec,
         spatial_specs,
     )
-    individual_delta = float(cover_spec["total_delta"]) / len(seeds)
+    # Reserve a fixed budget for bridging disconnected components.
+    max_bridges = 12
+    individual_delta = float(cover_spec["total_delta"]) / (len(seeds) + max_bridges)
 
     set_robot_configuration(
         scene,
@@ -516,6 +531,33 @@ def generate_carrying_iris_cover(
             delta=individual_delta,
             index=index,
         )
+        regions.append(IrisCoverRegion(label, result))
+    def connected_component():
+        sets = [item.result.region for item in regions]
+        reached = {i for i, region in enumerate(sets) if region.PointInSet(configurations[0], 1e-8)}
+        pending = list(reached)
+        while pending:
+            i = pending.pop()
+            for j, region in enumerate(sets):
+                if j not in reached and sets[i].IntersectsWith(region):
+                    reached.add(j); pending.append(j)
+        return reached, any(sets[i].PointInSet(configurations[-1], 1e-8) for i in reached)
+    for bridge in range(max_bridges + 1):
+        reached, connected = connected_component()
+        if connected:
+            break
+        if bridge == max_bridges or not reached:
+            raise RuntimeError("IRIS cover remains disconnected after bounded bridge generation")
+        # First point along the checked guide outside the start component.
+        chosen = next((i for i, q in enumerate(configurations)
+                       if not any(regions[j].result.region.PointInSet(q, 1e-8) for j in reached)
+                       and not any(np.linalg.norm(q-item.result.seed)<1e-6 for item in regions)), None)
+        if chosen is None:
+            raise RuntimeError("No new guide seed available to bridge disconnected IRIS cover")
+        seed = configurations[chosen]; label = labels[chosen]
+        result = _grow_cover_region(scene=scene, checker=checker, parameterization=parameterization,
+            seed=seed, domain=_cover_domain(scene, seed, spatial_specs[label], cover_spec),
+            spec=cover_spec, delta=individual_delta, index=len(regions))
         regions.append(IrisCoverRegion(label, result))
     return IrisCoverResult(
         regions=regions,

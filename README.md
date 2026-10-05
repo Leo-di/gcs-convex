@@ -1,5 +1,32 @@
 # Semantic GCS in Drake
 
+**项目历史与下次会话交接：**[三维 Drake 语义 GCS 任务](reports/52_task_history_and_handoff.md)
+
+**Full contact execution (2026-09-29):** an additional simulation mode now
+executes the complete task with a free cup, effort-limited arm/gripper control,
+and an ideal force-driven planar base. Both 1 ms and 0.5 ms runs lift, transport,
+release and settle the cup; the open-gripper control fails as expected. This
+uses a three-times-slower reference and is not wheel dynamics or hardware
+validation. See [the full execution report](reports/07_full_contact_execution.md).
+The local review page now defaults to this new 3D recording.
+
+**Grasp repair (2026-09-29):** the default now uses an oriented side pinch,
+appropriate WSG aperture, Cartesian retreat, and mandatory unfiltered
+cup/gripper/support checks with bilateral fingertip contact. The nominal
+433-frame replay and its 4,321-point dense audit pass. Six paired scene checks
+(nominal and cup x ±5 cm, fixed/automatic base) pass.
+
+A separate free-cup contact simulation lifts the cup about 11.9 cm at three
+time steps; the open-gripper control fails to lift. This is local contact
+validation, **not full-robot dynamic execution**. The kinematic view still uses
+attachment; the additional contact execution mode does not. IRIS region audits
+still contain collision samples.
+See [the repair report and reproduction commands](reports/06_grasp_model_repair.md)
+and [the historical methodological review](reports/05_simulation_method_review.md).
+
+Local review page: `http://localhost:7000/` (forward port 7000). It includes
+both complete-task and isolated-contact 3D recordings plus raw audit data.
+
 This project develops a small three-dimensional Drake scene for studying
 semantic motion planning with a Graph of Convex Sets (GCS).
 
@@ -99,9 +126,10 @@ Arm grasp and place motions remain IK-based.
 
 Before either continuous leg is solved, `src/semantic_product_planner.py`
 constructs a discrete product graph whose nodes are `(convex region, task
-mode)`. Spatial edges preserve the task mode. The `pick_cup` edge is enabled
-only in a region satisfying `base_in_room2` and `near_pickup_table`; the
-`place_cup` edge is enabled only where `base_in_room1` and `at_dropoff` hold.
+mode)`. Spatial edges preserve the task mode. The `pick_cup` and `place_cup`
+edges use candidate action regions and room labels. Candidate regions do not
+claim that every configuration supports an action: the demo checks geometric
+guards at the solved endpoints and monitors the recorded attachment transitions.
 The selected product path then restricts which convex sets are available to
 each GCS solve. Each convex set includes position and yaw bounds, so base
 orientation is optimized rather than interpolated after planning. The chosen
@@ -127,6 +155,121 @@ cup-to-robot contacts are filtered, while cup-to-wall, cup-to-door-frame, and
 cup-to-furniture collisions remain active in region generation.
 The complete cover, including every half-space matrix and per-region audit,
 is saved in `outputs/results/iris_np2_carrying_cover.json`.
+
+## Sampled semantic validation
+
+On this Linux host, run the complete validation without an interactive wait:
+
+```bash
+LCM_DEFAULT_URL=memq:// python -m src.animate_delivery_demo --no-wait
+```
+
+Omit `--no-wait` to keep Meshcat open. The local `memq://` setting avoids the
+host's LCM multicast issue. Validation failures return a nonzero exit status.
+
+The demo saves cup/gripper poses, gripper positions and the simulator attachment
+relation in `delivery_trace.json`, alongside `scene_config_snapshot.json` and
+`semantic_monitor.json`. Recheck the trace independently of animation phase
+names and cached predicate Booleans:
+
+```bash
+python -m src.semantic_monitor outputs/results/delivery_trace.json \
+  --config outputs/results/scene_config_snapshot.json \
+  --output outputs/results/semantic_monitor_replay.json
+```
+
+The monitor checks pickup proximity/alignment, closed-gripper carrying,
+attachment pose consistency, supported placement in the open-top bin, release
+continuity, and an open-gripper retreat at completion. Placement preserves the
+actual achieved cup pose. All tolerances are recorded in the configuration.
+The legacy ordered-event check is still saved separately; it is weaker than
+this monitor. Older traces without raw poses cannot be replayed with it.
+
+These are sampled kinematic checks, not continuous-time safety or contact-force
+guarantees. Attachment transitions are inferred from the simulator relation;
+attempted commands that leave this relation unchanged are not observed. The
+planner still selects a discrete route before continuous optimization. It now
+retries configured pickup base candidates after planning/validation failure;
+it does not search arbitrary alternative semantic routes.
+
+## Pickup candidate retry
+
+The default `pick_task.candidate_source: auto` generates `(x, y, yaw)` pickup
+base configurations on a deterministic grid inside the configured action regions.
+The grid is clipped by region/yaw bounds and pickup proximity, then ranked by
+preferred cup standoff, base displacement and yaw change. Sampling resolution,
+boundary margin, standoff, yaw samples and candidate cap are configured in
+`pick_task.candidate_generation`. These remain hand-chosen heuristic parameters,
+not learned reachability or collision guarantees. The current default uses only
+yaw zero and caps the list at six candidates.
+
+Set `candidate_source: manual` to use `pick_task.candidates` in priority order.
+Both sources share the same cup and grasp-point target. Each attempt must pass
+proximity and action-site checks, outbound GCS, pickup/delivery IK, endpoint
+guards, carrying IRIS/GCS, and full sampled collision/semantic validation.
+Only the first fully validated candidate is recorded in Meshcat. Rejected
+attempts restore the robot and cup state before the next attempt.
+
+```bash
+LCM_DEFAULT_URL=memq:// python -m src.animate_delivery_demo --no-wait \
+  --output-dir outputs/results/candidate_retry
+```
+
+Use `--config path/to/scene.yaml` to change candidates or other scene settings;
+both the main scene and attached-cup IRIS scene use that configuration.
+`candidate_attempts.json` records each candidate's failed stage, reason,
+diagnostic details, and elapsed time. It is written even when all candidates
+fail, in which case the command exits unsuccessfully. Use a distinct output
+directory for each experiment; earlier success artifacts in a reused directory
+are not deleted on a subsequent failure, so check the current attempt status.
+
+This is ordered finite candidate search, not global task-and-motion optimization.
+A solver failure rejects an attempt under the current settings, not the
+physical configuration for all possible solvers. Exhausting the list does not
+prove that the robot task is impossible.
+
+## Small paired scene evaluation
+
+```bash
+python -m src.benchmark_pickup --output-dir outputs/results/pickup_benchmark_new
+```
+
+Use an empty output directory. This runs the original fixed pickup base
+`(1.2,-0.1,0)` and the automatic generator on the nominal scene and two scenes
+with the cup moved by ±5 cm in x. Both methods use identical full-delivery checks,
+with a 240-second process timeout per run; the fixed method tries one point,
+whereas auto may try six. Each run saves its configuration, attempts, logs and
+result; successful runs also save the raw trace and semantic monitor report.
+The summary distinguishes success, candidate exhaustion, timeout and errors.
+Three deterministic scenes with one run each are diagnostic evidence, not a
+statistical success rate or an equal-candidate-budget comparison.
+
+## Unfiltered grasp audit and experimental strict validation
+
+```bash
+python -m src.grasp_audit outputs/results/delivery_trace.json \
+  --config outputs/results/scene_config_snapshot.json \
+  --output outputs/results/grasp_geometry_audit.json
+```
+
+This explicitly queries cup/gripper geometry pairs, bypassing collision filters.
+It returns a nonzero exit code for excessive penetration. Only named fingertip
+spheres allow a 0.5 mm numerical penetration tolerance; the palm/finger boxes
+allow none. Passing is not a contact-force or grasp-stability certificate.
+
+The default `validation.require_grasp_geometry: false` preserves the legacy
+kinematic demonstration and reports its failed grasp audit explicitly. Set it
+to `true` to reject such candidates before IRIS (and reject any later path
+violations). Do not interpret acceptance in legacy mode as physically valid
+robot execution. `review_scene.html` exports the scene with a visible audit
+notice and can be opened offline without port forwarding.
+
+`python -m src.diagnose_grasp_ik --output-dir outputs/results/grasp_diagnostic_new`
+compares legacy and explicitly oriented grasp endpoints. Experimental settings
+use `pick_task.gripper_rpy` (world-frame RPY for the upright cup) and
+`pick_task.orientation_tolerance`, along with different gripper openings.
+IK failures now distinguish pregrasp, grasp, lift, carry, preplace, and place.
+These endpoint diagnostics do not validate a full path.
 
 ## Collision residual
 

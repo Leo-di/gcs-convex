@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from src.scene_spec import load_scene_config
 from src.semantic_product_planner import plan_semantic_product
@@ -31,7 +32,7 @@ def test_product_plan_fails_when_pick_predicate_is_unavailable() -> None:
     config = load_scene_config()
     config["semantic_product_planning"]["region_predicates"][
         "room2_pickup_lane"
-    ] = ["base_in_room2"]
+    ] = []
 
     try:
         plan_semantic_product(
@@ -43,3 +44,11 @@ def test_product_plan_fails_when_pick_predicate_is_unavailable() -> None:
         assert "No semantic product path" in str(error)
     else:
         raise AssertionError("Expected the missing pickup predicate to make the task infeasible.")
+
+
+def test_product_requires_an_available_candidate_action_site():
+    config = load_scene_config()
+    config["semantic_product_planning"]["transitions"][0]["candidate_regions"] = []
+    with pytest.raises(RuntimeError, match="No semantic product path"):
+        plan_semantic_product(config, config["robot"]["start"],
+                              config["delivery_task"]["transfer_path"][-1])

@@ -120,6 +120,9 @@ def _neighbors(
     for transition in transitions:
         if transition["source"] != node.mode:
             continue
+        # An action site is a candidate, not a region-wide geometric guard.
+        if node.region not in transition.get("candidate_regions", region_predicates):
+            continue
         required = set(transition.get("requires", []))
         if not required.issubset(predicates):
             continue

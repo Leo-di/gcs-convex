@@ -2,3 +2,4 @@ drake
 numpy
 PyYAML
 pytest
+scipy

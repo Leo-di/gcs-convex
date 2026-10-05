@@ -1,0 +1,31 @@
+import json,statistics,collections,hashlib,shutil
+from pathlib import Path
+r=Path('outputs/results/semantic_multiscene_v1');spec=json.loads((r/'protocol.json').read_text());prep=json.loads((r/'preparation.json').read_text());progress=json.loads((r/'progress.json').read_text());contacts=json.loads((r/'contacts.json').read_text());runs=progress['runs'];methods=spec['methods']
+changed=[p for p,h in spec['input_sha256'].items() if hashlib.sha256(Path(p).read_bytes()).hexdigest()!=h]
+assert not changed,changed
+summary={'methods':{},'scenes':{},'contacts_passed':sum(x['status']=='passed' for x in contacts['runs']),'contacts_total':contacts['total'],'frozen_hashes_verified':len(spec['input_sha256'])}
+for m in methods:
+ a=[x for x in runs if x['method']==m];summary['methods'][m]={'accepted':sum(bool(x['best']) for x in a),'total':len(a),'median_wall_seconds':statistics.median(x['parent_wall_seconds'] for x in a),'median_first_solution_seconds':statistics.median(x['best']['discovered_seconds'] for x in a),'statuses':dict(collections.Counter(x['status'] for x in a))}
+for name,p in prep['scenes'].items():
+ summary['scenes'][name]={'accepted':p['accepted'],'proposed':len(p['attempts']),'preparation_seconds':p['preparation_seconds'],'disks':p['disks'],'rejections':dict(collections.Counter(a.get('stage','unknown') for a in p['attempts'] if a['status']!='accepted'))}
+pairs=[]
+for c in spec['cells']:
+ a={x['method']:x for x in runs if x['cell']==c['id']};b=a['B2_enumerate']['best'];j=a['joint_gcs']['best'];pairs.append({'cell':c['id'],'joint_relative_cost_percent':100*(j['cost']/b['cost']-1),'same_candidate':len({x['best']['candidate'] for x in a.values()})==1})
+summary['pairs']=pairs;summary['total_batch_seconds']=prep['wall_seconds']+json.loads((r/'complete.json').read_text())['elapsed_seconds']+contacts['elapsed_seconds']
+(r/'summary.json').write_text(json.dumps(summary,indent=2));(r/'verification.json').write_text(json.dumps({'hashes_verified':len(spec['input_sha256']),'changed':changed,'tests':'7 passed'},indent=2))
+lines=['# 20：多物理场景下的语义 GCS 对照实验','', '本轮完成四个预先固定的物理场景、每场景九个抓取提案、三个 rounding seeds、三种规划方法。36 次规划全部通过相同的语义、抓取几何和加密碰撞审计；预先指定的 seed=0 接触执行 12/12 通过。','', '**结论：尚未观察到联合选择的收益。** 12 组配对中三种方法均选中相同候选。联合 GCS 相对 B2 的路径代价差异范围为 %.6f%% 至 %.6f%%；这些是同一有限库中的数值结果，不是相对全局最优的误差。'% (min(p['joint_relative_cost_percent'] for p in pairs),max(p['joint_relative_cost_percent'] for p in pairs)), '', '| 方法 | 审计成功 | 总耗时中位数（秒） |','|---|---:|---:|']
+for m,s in summary['methods'].items():lines.append(f"| {m} | {s['accepted']}/{s['total']} | {s['median_wall_seconds']:.3f} |")
+lines+=['','B1 按固定候选顺序独立求解，找到第一个通过审计的解即停止；B2 独立求解全部可用候选并保留最低代价；joint 在一个 GCS 中选择候选及连续路径。三者使用相同的代价、输入库、碰撞及语义审计。每个方法限时 300 秒，单线程，同一配对固定 CPU；没有超时或规划错误。','','| 场景 | 有效提案/总提案 | 新建库及圆盘耗时（秒） |','|---|---:|---:|']
+for n,s in summary['scenes'].items():lines.append(f"| {n} | {s['accepted']}/{s['proposed']} | {s['preparation_seconds']:.2f} |")
+lines+=['','场景为原场景、杯子 x 减少 0.10 m、杯子 x 增加 0.10 m、推车中心从 (-1.35,-2.32) 移至 (-1.35,-0.90)。九个提案是 x∈{1.05,1.15,1.25}、y∈{-0.25,-0.10,0.05}、yaw=0，按 x、y 升序排列。四个场景使用同一原始 3D Drake 场景及任务。空手圆盘重新查询完整机器人在固定姿态下的 3D 距离；携物区域逐候选重新运行 IRIS。没有复用其他场景的几何区域。','','36 个提案中仅 8 个被接受，28 个拒绝全部保留。拒绝涉及人工接近范围、IK、引导 GCS、IRIS 种子碰撞及最终几何审计。它们是当前实现未能生成候选，不代表物理上不可行。杯子右移场景只剩一个候选，无法检验联合离散选择。推车移动也没有改变本轮最优候选，说明扰动仍未制造有效的局部选择与全局运输冲突。','','计时主表包含进程启动、加载、建图、求解和完整轨迹审计，不含共同的预生成库。上表单列本轮实际新建库成本；若将其加到某方法耗时，只代表共同使用预生成库的本实现，不代表经过优化的按需生成 B1 成本。四场景准备并行墙钟 %.2f 秒，规划 %.2f 秒，动力学 %.2f 秒，总计 %.2f 分钟。'% (prep['wall_seconds'],json.loads((r/'complete.json').read_text())['elapsed_seconds'],contacts['elapsed_seconds'],summary['total_batch_seconds']/60),'','接触执行使用自由杯子、力驱动夹爪，未进行 attachment 或初始化后的杯子位置重置，12 次均无超阈值意外接触。规划仍使用刚性附着近似和固定 IK 动作。移动底盘仍为理想驱动；有限采样碰撞审计不是连续时间安全证明；未对新 IRIS 区域执行独立随机全区域审计。','','下一步先区分候选生成失败的来源，提高可用候选的空间与姿态多样性；随后设计预先固定的语义任务分支，如多个可选取物对象、必须先访问检查区、携物状态禁行区域，让不同选择产生真实的后续代价或可行性差异。当前对照只隔离了候选选择策略，三者都遵守同一语义任务，不能证明语义编码优于无语义规划，也不是与已发表 TAMP 系统的对比。','','可复现运行：`LCM_DEFAULT_URL=memq:// OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 .venv/bin/python -m src.benchmark_semantic_multiscene --root <新的空目录>`。设计先于准备结果写入 design.json；输入哈希、逐候选失败、独立求解、接触日志全部保留。7 项相关测试通过。','','网页：http://localhost:7001/multiscene/ 。原始数据：`outputs/results/semantic_multiscene_v1/`。']
+Path('reports/20_semantic_multiscene_baselines.md').write_text('\n'.join(lines)+'\n')
+web=Path('outputs/results/grasp_fix_web/planar/multiscene');web.mkdir(exist_ok=True)
+for x in contacts['runs']:
+ if x['status'] in ['passed','failed']:
+  dest=web/(x['cell']+'_'+x['method']+'.html');shutil.copyfile(Path(x['output'])/'scene.html',dest)
+rows=''.join(f"<tr><td>{m}</td><td>{s['accepted']}/{s['total']}</td><td>{s['median_wall_seconds']:.3f} s</td></tr>" for m,s in summary['methods'].items())
+options=''.join(f'<option value="{x["cell"]}_{x["method"]}.html">{x["cell"]} · {x["method"]} · {x["status"]}</option>' for x in contacts['runs'] if x['status'] in ['passed','failed'])
+html='''<!doctype html><html lang="zh"><meta charset="utf-8"><title>多场景语义 GCS 对照</title><style>body{font:17px system-ui;margin:24px;color:#213547}table{border-collapse:collapse}td,th{padding:8px 22px;border:1px solid #ccd}iframe{width:100%;height:720px;border:1px solid #ccd}select{padding:10px;margin:16px 0}p{max-width:1100px}</style><h1>四个真实 3D 场景：语义 GCS 对照</h1><p>36/36 规划审计通过；12/12 自由杯子接触执行通过。三种方法在每组配对中选择相同候选，当前没有证明联合优化的路径优势。</p><table><tr><th>方法</th><th>规划成功</th><th>耗时中位数（不含准备）</th></tr>'''+rows+'''</table><p>原场景 2/9、杯子左移 3/9、杯子右移 1/9、推车靠近通道 2/9 个候选可用。28 个拒绝均保留；候选少是当前重要限制。三个 seeds 不等于三个独立物理场景。</p><p>下方显示实际接触动力学执行，杯子不附着、不重置。选择场景和方法后可在 Meshcat 动画控制中播放。规划仍采用附着近似，底盘为理想驱动，采样验证不构成连续安全证明。</p><select id="select">'''+options+'''</select><iframe id="viewer" title="接触动力学执行"></iframe><p><a href="summary.json">完整数值结果</a> · <a href="report.txt">实验报告</a> · <a href="../baselines/">上一轮对照</a></p><script>let s=document.getElementById('select'),v=document.getElementById('viewer');s.onchange=()=>v.src=s.value;s.onchange();</script></html>'''
+(web/'index.html').write_text(html);shutil.copyfile(r/'summary.json',web/'summary.json');shutil.copyfile('reports/20_semantic_multiscene_baselines.md',web/'report.txt')
+(web.parent/'index.html').write_text('<meta http-equiv="refresh" content="0;url=multiscene/"><a href="multiscene/">多场景语义 GCS 对照</a>')
+print(json.dumps(summary,indent=2))

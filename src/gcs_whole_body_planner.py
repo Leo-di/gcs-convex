@@ -153,6 +153,7 @@ def plan_carry_whole_body_gcs(
     goal_arm_q: np.ndarray | list[float],
     allowed_region_names: list[str],
     region_overrides: dict[str, HPolyhedron | list[HPolyhedron]] | None = None,
+    gcs_options=None,
 ) -> WholeBodyPlan:
     """Plan retraction, transit, and pre-placement in one 10-D GCS."""
 
@@ -234,13 +235,25 @@ def plan_carry_whole_body_gcs(
     gcs.AddVelocityBounds(-upper_velocity, upper_velocity)
 
     solve_start = time.perf_counter()
-    trajectory, result = gcs.SolvePath(source, target)
+    trajectory, result = (gcs.SolvePath(source, target) if gcs_options is None
+                          else gcs.SolvePath(source, target, gcs_options))
     solve_time = time.perf_counter() - solve_start
     if not result.is_success():
-        raise RuntimeError(
+        error = RuntimeError(
             "Whole-body GCS failed with "
             f"{result.get_solution_result()} using {result.get_solver_id().name()}."
         )
+        error.details = {
+            "start": start_q.tolist(), "goal": goal_q.tolist(),
+            "regions": [{"name": str(spec["name"]),
+                         "start_max_violation": float(np.max(region.A() @ start_q - region.b())),
+                         "goal_max_violation": float(np.max(region.A() @ goal_q - region.b()))}
+                        for region, spec in zip(regions, region_specs)],
+            "intersections": [[i, j] for i in range(len(regions))
+                              for j in range(i + 1, len(regions))
+                              if regions[i].IntersectsWith(regions[j])],
+        }
+        raise error
 
     duration = float(trajectory.end_time() - trajectory.start_time())
     sample_count = max(

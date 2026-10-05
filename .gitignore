@@ -6,6 +6,14 @@ __pycache__/
 *.egg-info/
 .DS_Store
 
+# Reference literature (copyrighted) and local artifacts
+data/
+*.pdf
+se2_navigation.webm
+
+# Cloned third-party dependencies
+outputs/dependencies/
+
 outputs/figures/*
 outputs/videos/*
 outputs/results/*

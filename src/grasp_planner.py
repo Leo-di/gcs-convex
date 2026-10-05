@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from pydrake.math import RotationMatrix
+from pydrake.math import RotationMatrix, RollPitchYaw
 from pydrake.multibody.inverse_kinematics import InverseKinematics
 from pydrake.solvers import Solve
 
@@ -20,6 +20,13 @@ class PickPlan:
     grasp_q: np.ndarray
     lift_q: np.ndarray
     grasp_target: np.ndarray
+
+
+class IKSolveError(RuntimeError):
+    def __init__(self, details: dict):
+        self.details = details
+        super().__init__(f"IK failed at {details['stage']} for target {details['target_position']} "
+                         f"with solver {details['solver']}: {details['solution_result']}")
 
 
 def _arm_position_indices(scene: SceneHandles) -> list[int]:
@@ -43,6 +50,7 @@ def solve_arm_ik(
     minimum_clearance: float,
     target_orientation: RotationMatrix | None = None,
     orientation_tolerance: float = 0.06,
+    stage: str = "ik",
 ) -> np.ndarray:
     """Solve arm IK while the base, gripper, and cup remain fixed."""
 
@@ -77,26 +85,35 @@ def solve_arm_ik(
         q0[fixed_indices],
         q[fixed_indices],
     )
+    if "ik_solver" in scene.config:
+        limits = scene.config["whole_body_planning"]
+        program.AddBoundingBoxConstraint(np.asarray(limits["joint_lower_limits"]),
+                                         np.asarray(limits["joint_upper_limits"]),
+                                         q[arm_indices])
 
     grasp_point = np.asarray(
         scene.config["gripper"]["grasp_point_in_body"],
         dtype=float,
     )
     target_position = np.asarray(target_position, dtype=float)
+    position_margin = min(1e-6, position_tolerance * 0.01)
     ik.AddPositionConstraint(
         scene.gripper_body.body_frame(),
         grasp_point,
         scene.plant.world_frame(),
-        target_position - position_tolerance,
-        target_position + position_tolerance,
+        target_position - (position_tolerance - position_margin),
+        target_position + (position_tolerance - position_margin),
     )
     if target_orientation is not None:
+        # Keep the IK solution inside the semantic guard, rather than relying
+        # on identical floating-point feasibility at its angular boundary.
+        angular_margin = min(1e-5, orientation_tolerance * 0.01)
         ik.AddOrientationConstraint(
             scene.plant.world_frame(),
-            RotationMatrix(),
-            scene.gripper_body.body_frame(),
             target_orientation,
-            orientation_tolerance,
+            scene.gripper_body.body_frame(),
+            RotationMatrix(),
+            orientation_tolerance - angular_margin,
         )
     ik.AddMinimumDistanceLowerBoundConstraint(
         minimum_clearance,
@@ -110,11 +127,29 @@ def solve_arm_ik(
     )
     program.SetInitialGuess(q, q0)
     result = Solve(program)
+    # Reuse exactly the same constraints and objective across deterministic
+    # initial guesses. A failed local solve is not an infeasibility proof.
+    retry_count = int(scene.config.get("ik_solver", {}).get("max_restarts", 0))
+    rng = np.random.default_rng(1701)
+    lower = scene.plant.GetPositionLowerLimits()[arm_indices]
+    upper = scene.plant.GetPositionUpperLimits()[arm_indices]
+    for _ in range(retry_count):
+        if result.is_success():
+            break
+        seed = q0.copy()
+        seed[arm_indices] = rng.uniform(lower, upper)
+        program.SetInitialGuess(q, seed)
+        result = Solve(program)
     if not result.is_success():
-        raise RuntimeError(
-            f"IK failed for target {target_position.tolist()} "
-            f"with solver {result.get_solver_id().name()}."
-        )
+        raise IKSolveError({
+            "stage": stage, "target_position": target_position.tolist(),
+            "base_q": np.asarray(base_q).tolist(),
+            "solver": result.get_solver_id().name(),
+            "solution_result": str(result.get_solution_result()),
+            "position_tolerance_m": position_tolerance,
+            "orientation_constrained": target_orientation is not None,
+            "orientation_tolerance_rad": orientation_tolerance if target_orientation is not None else None,
+        })
 
     solution = result.GetSolution(q)
     return solution[arm_indices]
@@ -128,6 +163,9 @@ def plan_pick(scene: SceneHandles, base_q: np.ndarray) -> PickPlan:
     )
     tolerance = float(task["position_tolerance"])
     clearance = float(task["minimum_clearance"])
+    orientation = (RollPitchYaw(task["gripper_rpy"]).ToRotationMatrix()
+                   if "gripper_rpy" in task else None)
+    orientation_tolerance = float(task.get("orientation_tolerance", 0.06))
 
     pregrasp_target = cup_center + np.asarray(task["pregrasp_offset"], dtype=float)
     grasp_target = cup_center + np.asarray(task["grasp_offset"], dtype=float)
@@ -135,27 +173,36 @@ def plan_pick(scene: SceneHandles, base_q: np.ndarray) -> PickPlan:
 
     pregrasp_q = solve_arm_ik(
         scene,
+        stage="pregrasp",
         base_q=base_q,
         target_position=pregrasp_target,
         initial_arm_q=scene.arm_home_positions,
         position_tolerance=tolerance,
         minimum_clearance=clearance,
+        target_orientation=orientation,
+        orientation_tolerance=orientation_tolerance,
     )
     grasp_q = solve_arm_ik(
         scene,
+        stage="grasp",
         base_q=base_q,
         target_position=grasp_target,
         initial_arm_q=pregrasp_q,
         position_tolerance=tolerance,
         minimum_clearance=clearance,
+        target_orientation=orientation,
+        orientation_tolerance=orientation_tolerance,
     )
     lift_q = solve_arm_ik(
         scene,
+        stage="lift",
         base_q=base_q,
         target_position=lift_target,
         initial_arm_q=grasp_q,
         position_tolerance=tolerance,
         minimum_clearance=clearance,
+        target_orientation=orientation,
+        orientation_tolerance=orientation_tolerance,
     )
 
     return PickPlan(
@@ -165,3 +212,35 @@ def plan_pick(scene: SceneHandles, base_q: np.ndarray) -> PickPlan:
         lift_q=lift_q,
         grasp_target=grasp_target,
     )
+
+
+def cartesian_arm_path(scene: SceneHandles, base_q: np.ndarray,
+                       start_q: np.ndarray, end_q: np.ndarray, count: int,
+                       *, stage: str) -> np.ndarray:
+    """Track a straight gripper translation and shortest rotation with IK.
+
+    The start configuration and target end pose are preserved. The endpoint
+    is solved on the continuation branch, rather than jumping to an unrelated
+    IK solution with the same pose. Each configuration satisfies the same
+    collision constraints as endpoint IK; the assembled path still requires
+    the independent, unfiltered cup/gripper audit.
+    """
+    poses = []
+    for arm_q in (start_q, end_q):
+        set_robot_configuration(scene, base_q, arm_q, scene.gripper_open_positions)
+        poses.append(scene.gripper_body.body_frame().CalcPoseInWorld(scene.plant_context))
+    point = np.asarray(scene.config["gripper"]["grasp_point_in_body"])
+    positions = [pose.multiply(point) for pose in poses]
+    rotations = [pose.rotation().ToQuaternion() for pose in poses]
+    path = [np.asarray(start_q)]
+    for index, alpha in enumerate(np.linspace(0, 1, count)[1:], 1):
+        path.append(solve_arm_ik(
+            scene, base_q=base_q,
+            target_position=(1-alpha)*positions[0] + alpha*positions[1],
+            target_orientation=RotationMatrix(rotations[0].slerp(alpha, rotations[1])),
+            initial_arm_q=path[-1], position_tolerance=0.0002,
+            orientation_tolerance=0.005,
+            minimum_clearance=float(scene.config["pick_task"]["minimum_clearance"]),
+            stage=f"{stage}_{index}",
+        ))
+    return np.asarray(path)

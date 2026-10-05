@@ -60,8 +60,9 @@ def plan_delivery(scene: SceneHandles, pick_plan: PickPlan) -> DeliveryPlan:
     )
     X_GC = X_WG_grasp.inverse() @ scene.cup_initial_pose
 
-    preplace_cup_pose = RigidTransform(RotationMatrix(), preplace_center)
-    place_cup_pose = RigidTransform(RotationMatrix(), place_center)
+    place_rotation = RotationMatrix.MakeZRotation(float(task.get("place_yaw", 0.0)))
+    preplace_cup_pose = RigidTransform(place_rotation, preplace_center)
+    place_cup_pose = RigidTransform(place_rotation, place_center)
     X_WG_preplace = preplace_cup_pose @ X_GC.inverse()
     X_WG_place = place_cup_pose @ X_GC.inverse()
 
@@ -81,6 +82,7 @@ def plan_delivery(scene: SceneHandles, pick_plan: PickPlan) -> DeliveryPlan:
 
     carry_q = solve_arm_ik(
         scene,
+        stage="carry",
         base_q=pick_plan.base_q,
         target_position=_grasp_point_target(scene, X_WG_carry),
         initial_arm_q=pick_plan.lift_q,
@@ -91,6 +93,7 @@ def plan_delivery(scene: SceneHandles, pick_plan: PickPlan) -> DeliveryPlan:
     )
     preplace_q = solve_arm_ik(
         scene,
+        stage="preplace",
         base_q=base_q,
         target_position=_grasp_point_target(scene, X_WG_preplace),
         initial_arm_q=pick_plan.lift_q,
@@ -101,13 +104,20 @@ def plan_delivery(scene: SceneHandles, pick_plan: PickPlan) -> DeliveryPlan:
     )
     place_q = solve_arm_ik(
         scene,
+        stage="place",
         base_q=base_q,
         target_position=_grasp_point_target(scene, X_WG_place),
         initial_arm_q=preplace_q,
-        position_tolerance=tolerance,
+        position_tolerance=float(task["place_position_tolerance"]),
         minimum_clearance=clearance,
         target_orientation=X_WG_place.rotation(),
-        orientation_tolerance=orientation_tolerance,
+        orientation_tolerance=float(task["place_orientation_tolerance"]),
+    )
+
+    # Releasing must preserve the achieved pose, not teleport to the IK target.
+    set_robot_configuration(scene, base_q, place_q, scene.gripper_closed_positions)
+    place_cup_pose = (
+        scene.gripper_body.body_frame().CalcPoseInWorld(scene.plant_context) @ X_GC
     )
 
     return DeliveryPlan(
