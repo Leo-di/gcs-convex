@@ -61,3 +61,13 @@ free_navigation = { (x, y, ψ) ∈ SE(2) : dist(base(q_base(x,y,ψ), arm_home), 
 ## English summary
 
 This week we completed the three-layer bootstrap navigation repair from the handoff: (i) the navigation predicate now lives on the SE(2) subspace of configuration space—each convex region is a current-geometry XY disk crossed with a yaw interval, so the base rotates in-lane to route around a relocated cart; (ii) the arm posture is selected to maximize base free space, bringing arm geometry into the navigation regions; (iii) doorway seed densification. The 16-scene development regression shows zero regressions (all undisturbed scenes match the old candidate counts exactly), and heldout_01—previously rejected before query—now passes end-to-end with 4.5 cm minimum clearance. Remaining failures are honestly categorized: solver rounding failures on dense-but-connected covers (next: edge sparsification), untouched IK failures in the grasp layer, and one known-hard scene. Next week: finish the patch runs, pre-register a fresh-scene evaluation, and extend mode-specific predicates to the grasp/release layer.
+
+## 附记（10-06 02:12 补跑终局）
+
+补跑全部结束，`se2_navigation_refresh_v3/comparison.json` 已发布，16/16 场景有最终结果：
+
+- **零回归确认**：8 个干净完成场景候选数与旧版逐场景持平（00:3/3、07:4/4、11:2/2、14:3/3、15:4/4，合计 16=16）。
+- **预期修正**：原预期 heldout_01/02/05/13（旧版 0 候选）补跑后 >0——**未兑现**。13 干净跑完仍 0 候选；01/02/05/10/12 仍 timeout。诚实结论：SE(2) 修复保证零回归（已证），未解锁新候选。
+- **遗留**：03/04/08（旧版 1/1/2 候选）被机器竞争误杀未能复现验证，转下周错峰重跑；9 个 timeout 场景整体不计入结论（口径同报告 52）。
+
+> 注：`status_regression.sh` 已修复显示 bug（此前有 progress 文件即误标「进行中」）；另请将本报告 §「下周」第 1 条视为已完成。
