@@ -5,7 +5,11 @@ import pytest
 from src.animate_delivery_demo import plan_delivery_candidate
 from src.build_scene import build_scene, set_robot_configuration
 from src.candidate_planner import CandidateRejected
-from src.grasp_audit import measure_cup_gripper, summarize_grasp_audit
+from src.grasp_audit import (
+    measure_cup_gripper,
+    summarize_grasp_audit,
+    summarize_wall_clearance,
+)
 from src.grasp_planner import plan_pick
 from src.scene_spec import load_scene_config
 from src.task_semantics import pick_guard_residuals
@@ -33,6 +37,19 @@ def test_strict_mode_rejects_legacy_grasp_before_iris():
 def test_missing_geometry_does_not_pass_audit():
     assert not summarize_grasp_audit([])["satisfied"]
     assert not summarize_grasp_audit([{"cup_gripper_audit": {"pairs": []}}])["satisfied"]
+
+
+def test_wall_clearance_gate_requires_payload_and_robot_margin():
+    row = {
+        "phase": "carry",
+        "attached": True,
+        "wall_clearance": {
+            "payload_to_wall": {"distance_m": 0.068, "geometry_a": "cup", "geometry_b": "wall"},
+            "robot_to_wall": {"distance_m": 0.042, "geometry_a": "base", "geometry_b": "wall"},
+        },
+    }
+    assert summarize_wall_clearance([row], 0.02)["satisfied"]
+    assert not summarize_wall_clearance([row], 0.05)["satisfied"]
 
 
 def test_numerical_contact_allowance_applies_only_to_tip_geometry():

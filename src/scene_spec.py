@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +12,14 @@ import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SCENE_CONFIG = PROJECT_ROOT / "configs" / "scene.yaml"
+CANDIDATE_LIBRARY_CONFIG = (
+    PROJECT_ROOT
+    / "outputs"
+    / "results"
+    / "semantic_candidates"
+    / "library"
+    / "config.json"
+)
 
 
 @dataclass(frozen=True)
@@ -46,6 +55,22 @@ def load_scene_config(path: Path | str = DEFAULT_SCENE_CONFIG) -> dict[str, Any]
     if not isinstance(data, dict):
         raise ValueError("Scene configuration must be a YAML mapping.")
     return data
+
+
+def load_candidate_library_config() -> dict[str, Any]:
+    """Load the historical experiment snapshot, or the tracked base scene.
+
+    Older experiment scripts were written against an untracked generated
+    snapshot.  A fresh clone must still be able to construct its deterministic
+    scene cohort, so the repository scene is the explicit fallback.
+    """
+
+    if CANDIDATE_LIBRARY_CONFIG.is_file():
+        data = json.loads(CANDIDATE_LIBRARY_CONFIG.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            raise ValueError("Candidate library configuration must be a mapping.")
+        return data
+    return load_scene_config()
 
 
 def semantic_regions(config: dict[str, Any]) -> dict[str, Region2D]:

@@ -109,6 +109,7 @@ class ManipulationPhasePlan:
     arm_joint_travel: float
     audit_samples: int
     audit_collisions: int
+    region_method: str = "iris_np2"
     region_results: tuple[IrisRegionResult, ...] = field(repr=False, default=())
 
 
@@ -117,7 +118,12 @@ def phase_plan_to_dict(plan: ManipulationPhasePlan) -> dict[str, Any]:
     total_collisions = sum(item.holdout_collisions for item in plan.region_results)
     return {
         "mode": plan.mode,
-        "algorithm": "Drake IrisNp2 regions + GcsTrajectoryOptimization",
+        "algorithm": (
+            "Drake ordered convex contact corridor + GcsTrajectoryOptimization"
+            if plan.region_method == "reference_corridor"
+            else "Drake IrisNp2 regions + GcsTrajectoryOptimization"
+        ),
+        "region_method": plan.region_method,
         "dimension": 10,
         "number_of_regions": len(plan.region_results),
         "seed_count": plan.seed_count,
@@ -147,7 +153,11 @@ def phase_plan_to_dict(plan: ManipulationPhasePlan) -> dict[str, Any]:
             for index, item in enumerate(plan.region_results)
         ],
         "scope": (
-            "Probabilistic per-region epsilon/delta guarantees; finite-sample "
+            "Reference-centered convex corridor; safety is established by the "
+            "main-scene finite-sample trajectory gate, not a whole-region "
+            "certificate or continuous-time proof."
+            if plan.region_method == "reference_corridor"
+            else "Probabilistic per-region epsilon/delta guarantees; finite-sample "
             "trajectory audit; not a continuous-time safety certificate."
         ),
     }
@@ -164,7 +174,16 @@ def _manipulation_spec(config: dict[str, Any]) -> dict[str, Any]:
         "max_planes_per_iteration": cover["max_planes_per_iteration"],
         "verbose": cover["verbose"],
         "epsilon": cover["epsilon"],
-        "configuration_space_margin": cover["configuration_space_margin"],
+        # Manipulation endpoints intentionally approach the table / bin more
+        # closely than the carrying trajectory.  Let this layer use its own
+        # margin instead of inheriting a carrying margin that can make a
+        # collision-free endpoint infeasible to IRIS.
+        "configuration_space_margin": float(
+            section.get(
+                "configuration_space_margin",
+                cover["configuration_space_margin"],
+            )
+        ),
         "mixing_steps": cover["mixing_steps"],
         "random_seed": cover["random_seed"],
         "starting_radius": cover["starting_radius"],
@@ -177,6 +196,18 @@ def _manipulation_spec(config: dict[str, Any]) -> dict[str, Any]:
         ),
         "total_delta": float(section.get("total_delta", 0.05)),
         "max_bridges": int(section.get("max_bridges", 8)),
+        "pregrasp_region_method": str(
+            section.get("pregrasp_region_method", "iris_np2")
+        ),
+        "retreat_region_method": str(
+            section.get("retreat_region_method", "iris_np2")
+        ),
+        "contact_corridor_stride": int(
+            section.get("contact_corridor_stride", 2)
+        ),
+        "contact_corridor_padding": float(
+            section.get("contact_corridor_padding", 0.003)
+        ),
     }
 
 
@@ -231,6 +262,75 @@ def _phase_domain(
     return HPolyhedron.MakeBox(lower, upper)
 
 
+def _reference_corridor_cover(
+    scene: SceneHandles,
+    reference: np.ndarray,
+    site_region_spec: dict[str, Any],
+    spec: dict[str, Any],
+) -> tuple[list[Any], list[IrisRegionResult], np.ndarray, list[tuple[int, int]]]:
+    """Build an ordered convex corridor around a checked contact path.
+
+    Each set is the axis-aligned hull of two neighboring reference samples,
+    padded slightly in the seven arm coordinates.  Consecutive sets overlap at
+    their shared reference waypoint and only forward edges are exposed to GCS,
+    preventing the free-space shortcut that can cross the cup near contact.
+    """
+
+    from pydrake.geometry.optimization import HPolyhedron
+
+    stride = int(spec["contact_corridor_stride"])
+    padding = float(spec["contact_corridor_padding"])
+    if stride < 1:
+        raise ValueError("contact_corridor_stride must be at least one.")
+    if padding <= 0.0:
+        raise ValueError("contact_corridor_padding must be positive.")
+    indices = list(range(0, len(reference), stride))
+    if indices[-1] != len(reference) - 1:
+        indices.append(len(reference) - 1)
+    waypoints = reference[indices]
+    joint_spec = scene.config["whole_body_planning"]
+    domain_lower = np.concatenate(
+        [
+            np.asarray(site_region_spec["lower"], dtype=float),
+            [float(site_region_spec["yaw_bounds"][0])],
+            np.asarray(joint_spec["joint_lower_limits"], dtype=float),
+        ]
+    )
+    domain_upper = np.concatenate(
+        [
+            np.asarray(site_region_spec["upper"], dtype=float),
+            [float(site_region_spec["yaw_bounds"][1])],
+            np.asarray(joint_spec["joint_upper_limits"], dtype=float),
+        ]
+    )
+    pad = np.asarray([1e-6, 1e-6, 1e-6] + [padding] * 7, dtype=float)
+    regions: list[Any] = []
+    results: list[IrisRegionResult] = []
+    for index, (start, goal) in enumerate(zip(waypoints[:-1], waypoints[1:])):
+        lower = np.maximum(np.minimum(start, goal) - pad, domain_lower)
+        upper = np.minimum(np.maximum(start, goal) + pad, domain_upper)
+        region = HPolyhedron.MakeBox(lower, upper)
+        if not region.PointInSet(start, 1e-9) or not region.PointInSet(goal, 1e-9):
+            raise RuntimeError(f"Contact corridor region {index} lost an endpoint.")
+        results.append(
+            IrisRegionResult(
+                region=region,
+                seed=(start + goal) / 2.0,
+                solve_time_seconds=0.0,
+                number_of_faces=int(region.A().shape[0]),
+                epsilon=0.0,
+                delta=0.0,
+                holdout_samples=0,
+                holdout_collisions=0,
+                holdout_collision_fraction=0.0,
+                attached_object_included=False,
+            )
+        )
+        regions.append(region)
+    edges = [(index, index + 1) for index in range(len(regions) - 1)]
+    return regions, results, waypoints, edges
+
+
 def _site_region_spec(config: dict[str, Any], site: str) -> dict[str, Any]:
     name = SITE_REGION_NAMES[site]
     for spec in config["gcs_base_planning"]["regions"]:
@@ -263,6 +363,7 @@ def _apply_mode_filters(mode_scene: SceneHandles, spec: ManipulationModeSpec) ->
 
     plant = mode_scene.plant
     scene_graph = mode_scene.scene_graph
+    declaration = None
     if spec.attached:
         attached_gid = mode_scene.attached_cup_geometry_id
         support_bodies = [plant.GetBodyByName("table"), plant.GetBodyByName("dropoff_bin")]
@@ -284,7 +385,8 @@ def _apply_mode_filters(mode_scene: SceneHandles, spec: ManipulationModeSpec) ->
             GeometrySet(plant.GetCollisionGeometriesForBody(mode_scene.cup_body)),
             GeometrySet(gripper_geometries),
         )
-    scene_graph.collision_filter_manager().Apply(declaration)
+    if declaration is not None:
+        scene_graph.collision_filter_manager().Apply(declaration)
 
 
 def _mode_scene(
@@ -434,92 +536,112 @@ def plan_manipulation_phase(
         config["iris_np2_cover"]["seed_metric_weights"], dtype=float
     )
     site_spec = _site_region_spec(config, spec.site)
-    cover_seed = select_phase_seeds(
-        reference, weights, spec_options["seed_distance_threshold"]
+    mode_region_method = spec_options.get(
+        f"{mode}_region_method", "iris_np2"
     )
-
-    regions: list[Any] = []
-    results: list[IrisRegionResult] = []
-    bridged = False
-
-    def grow(seed: np.ndarray, index: int) -> None:
-        delta = spec_options["total_delta"] / (
-            len(cover_seed) + spec_options["max_bridges"]
+    if mode_region_method not in {"iris_np2", "reference_corridor"}:
+        raise ValueError(
+            f"manipulation_gcs.{mode}_region_method must be "
+            "iris_np2 or reference_corridor."
         )
-        result = _grow_cover_region(
-            scene=machinery.scene,
-            checker=machinery.checker,
-            parameterization=machinery.parameterization,
-            seed=seed,
-            domain=_phase_domain(machinery.scene, seed, site_spec, spec_options),
-            spec=spec_options,
-            delta=delta,
-            index=index,
+    use_reference_corridor = mode_region_method == "reference_corridor"
+    if use_reference_corridor:
+        regions, results, cover_seed, edges = _reference_corridor_cover(
+            machinery.scene,
+            reference,
+            site_spec,
+            spec_options,
         )
-        regions.append(result.region)
-        results.append(result)
+        bridged = False
+        iris_seconds = 0.0
+        region_method = "reference_corridor"
+    else:
+        cover_seed = select_phase_seeds(
+            reference, weights, spec_options["seed_distance_threshold"]
+        )
+        regions = []
+        results = []
+        bridged = False
 
-    start = time.perf_counter()
-    for index, seed in enumerate(cover_seed):
-        grow(seed, index)
+        def grow(seed: np.ndarray, index: int) -> None:
+            delta = spec_options["total_delta"] / (
+                len(cover_seed) + spec_options["max_bridges"]
+            )
+            result = _grow_cover_region(
+                scene=machinery.scene,
+                checker=machinery.checker,
+                parameterization=machinery.parameterization,
+                seed=seed,
+                domain=_phase_domain(machinery.scene, seed, site_spec, spec_options),
+                spec=spec_options,
+                delta=delta,
+                index=index,
+            )
+            regions.append(result.region)
+            results.append(result)
+
+        start = time.perf_counter()
+        for index, seed in enumerate(cover_seed):
+            grow(seed, index)
 
     start_q = reference[0]
     goal_q = reference[-1]
 
-    def connected() -> bool:
-        reached = {
-            index
-            for index, region in enumerate(regions)
-            if region.PointInSet(start_q, 1e-8)
-        }
-        goal_regions = {
-            index
-            for index, region in enumerate(regions)
-            if region.PointInSet(goal_q, 1e-8)
-        }
-        pending = list(reached)
-        while pending:
-            i = pending.pop()
-            for j, region in enumerate(regions):
-                if j not in reached and regions[i].IntersectsWith(region):
-                    reached.add(j)
-                    pending.append(j)
-        return bool(reached & goal_regions)
-
-    for bridge in range(spec_options["max_bridges"] + 1):
-        if connected():
-            break
-        if bridge == spec_options["max_bridges"]:
-            raise RuntimeError(
-                f"Manipulation mode {mode} cover is disconnected after "
-                "bounded bridge generation."
-            )
-        bridged = True
-        chosen = next(
-            (
+    if not use_reference_corridor:
+        def connected() -> bool:
+            reached = {
                 index
-                for index, q in enumerate(reference)
-                if not any(
-                    region.PointInSet(q, 1e-8) for region in regions
-                )
-                and not any(
-                    np.linalg.norm(q - item.seed) < 1e-6 for item in results
-                )
-            ),
-            None,
-        )
-        if chosen is None:
-            raise RuntimeError(
-                f"Manipulation mode {mode} has no new reference seed to bridge."
-            )
-        grow(reference[chosen], len(regions))
-    iris_seconds = time.perf_counter() - start
+                for index, region in enumerate(regions)
+                if region.PointInSet(start_q, 1e-8)
+            }
+            goal_regions = {
+                index
+                for index, region in enumerate(regions)
+                if region.PointInSet(goal_q, 1e-8)
+            }
+            pending = list(reached)
+            while pending:
+                i = pending.pop()
+                for j, region in enumerate(regions):
+                    if j not in reached and regions[i].IntersectsWith(region):
+                        reached.add(j)
+                        pending.append(j)
+            return bool(reached & goal_regions)
 
-    edges: list[tuple[int, int]] = []
-    for i in range(len(regions)):
-        for j in range(i + 1, len(regions)):
-            if regions[i].IntersectsWith(regions[j]):
-                edges.extend([(i, j), (j, i)])
+        for bridge in range(spec_options["max_bridges"] + 1):
+            if connected():
+                break
+            if bridge == spec_options["max_bridges"]:
+                raise RuntimeError(
+                    f"Manipulation mode {mode} cover is disconnected after "
+                    "bounded bridge generation."
+                )
+            bridged = True
+            chosen = next(
+                (
+                    index
+                    for index, q in enumerate(reference)
+                    if not any(
+                        region.PointInSet(q, 1e-8) for region in regions
+                    )
+                    and not any(
+                        np.linalg.norm(q - item.seed) < 1e-6 for item in results
+                    )
+                ),
+                None,
+            )
+            if chosen is None:
+                raise RuntimeError(
+                    f"Manipulation mode {mode} has no new reference seed to bridge."
+                )
+            grow(reference[chosen], len(regions))
+        iris_seconds = time.perf_counter() - start
+        edges = []
+        for i in range(len(regions)):
+            for j in range(i + 1, len(regions)):
+                if regions[i].IntersectsWith(regions[j]):
+                    edges.extend([(i, j), (j, i)])
+        region_method = "iris_np2"
 
     base_spec = config["gcs_base_planning"]
     planner_spec = config["whole_body_planning"]
@@ -608,5 +730,6 @@ def plan_manipulation_phase(
         ),
         audit_samples=len(configurations),
         audit_collisions=audit_collisions,
+        region_method=region_method,
         region_results=tuple(results),
     )

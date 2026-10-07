@@ -10,6 +10,7 @@ from src.manipulation_gcs import (
     SITE_REGION_NAMES,
     _phase_domain,
     _manipulation_spec,
+    _reference_corridor_cover,
     select_phase_seeds,
 )
 from src.scene_spec import load_scene_config
@@ -109,6 +110,53 @@ def test_phase_domain_clips_joints_and_uses_site_box():
     assert not domain.PointInSet(outside_yaw, 1e-9)
 
 
+def test_manipulation_margin_can_be_tighter_than_carrying_margin():
+    config = load_scene_config()
+    spec = _manipulation_spec(config)
+    manipulation_margin = config["manipulation_gcs"][
+        "configuration_space_margin"
+    ]
+    carrying_margin = config["iris_np2_cover"][
+        "configuration_space_margin"
+    ]
+    assert spec["configuration_space_margin"] == manipulation_margin
+    assert 0.0 < manipulation_margin < carrying_margin
+    assert manipulation_margin < config["pick_task"]["minimum_clearance"]
+
+
+def test_pregrasp_uses_ordered_contact_corridor():
+    config = load_scene_config()
+    spec = config["manipulation_gcs"]
+    assert spec["pregrasp_region_method"] == "reference_corridor"
+    assert spec["contact_corridor_stride"] >= 1
+    assert 0.0 < spec["contact_corridor_padding"] < 0.01
+
+
+def test_reference_corridor_has_only_ordered_overlapping_edges():
+    config = load_scene_config()
+    scene = SimpleNamespace(config=config)
+    spec = _manipulation_spec(config)
+    site = next(
+        item
+        for item in config["gcs_base_planning"]["regions"]
+        if item["name"] == SITE_REGION_NAMES["pickup"]
+    )
+    reference = np.zeros((7, 10))
+    reference[:, :3] = [1.1, -0.1, 0.0]
+    reference[:, 3] = np.linspace(0.0, 0.3, len(reference))
+    regions, results, waypoints, edges = _reference_corridor_cover(
+        scene, reference, site, spec
+    )
+    assert len(regions) == len(waypoints) - 1 == len(results)
+    assert edges == [(index, index + 1) for index in range(len(regions) - 1)]
+    assert regions[0].PointInSet(reference[0])
+    assert regions[-1].PointInSet(reference[-1])
+    assert all(
+        regions[index].IntersectsWith(regions[index + 1])
+        for index in range(len(regions) - 1)
+    )
+
+
 def test_disabled_manipulation_gcs_returns_none_without_planning():
     from src.animate_delivery_demo import _try_manipulation_phase
 
@@ -119,6 +167,45 @@ def test_disabled_manipulation_gcs_returns_none_without_planning():
     )
     assert result is None
     assert attempt == {}
+
+
+def test_main_scene_audit_rejects_filtered_checker_shortcut(monkeypatch):
+    from src import animate_delivery_demo, manipulation_gcs
+
+    fake_plan = SimpleNamespace(configurations=np.zeros((2, 10)))
+    monkeypatch.setattr(
+        manipulation_gcs,
+        "plan_manipulation_phase",
+        lambda **kwargs: fake_plan,
+    )
+    monkeypatch.setattr(
+        manipulation_gcs,
+        "phase_plan_to_dict",
+        lambda plan: {"mode": "pregrasp"},
+    )
+    monkeypatch.setattr(
+        animate_delivery_demo,
+        "_audit_manipulation_phase_geometry",
+        lambda *args, **kwargs: {
+            "satisfied": False,
+            "violation_count": 1,
+        },
+    )
+    scene = SimpleNamespace(config={"manipulation_gcs": {"enabled": True}})
+    attempt = {}
+    result = animate_delivery_demo._try_manipulation_phase(
+        scene,
+        "pregrasp",
+        np.zeros((2, 10)),
+        attempt,
+        {},
+    )
+    assert result is None
+    report = attempt["pregrasp_manipulation_gcs"]
+    assert report["status"] == "fallback_to_reference"
+    assert report["rejected_plan"]["main_scene_geometry_audit"][
+        "violation_count"
+    ] == 1
 
 
 def test_plan_manipulation_phase_grasp_mode_end_to_end():

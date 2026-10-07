@@ -3,10 +3,11 @@ import copy,json,time
 from pathlib import Path
 import numpy as np
 from .benchmark_semantic_baselines import atomic_json
+from .scene_spec import load_candidate_library_config
 
 
 def design():
-    base=json.loads(Path('outputs/results/semantic_candidates/library/config.json').read_text())
+    base=load_candidate_library_config()
     base['pick_task']['collision_checked_pregrasp']=True;base['pick_task']['cartesian_approach']=True
     base['iris_np2_cover']['counterexample_refinement']=True
     scenes={};changes={}

@@ -134,11 +134,15 @@ def execute(config, reference, *, time_step=.001, time_scale=3.0,
     bilateral_fraction = float(np.mean([min(row["finger_contact_force_N"].values()) > .05 for row in held])) if held else 0.
     reference_relative = next(np.asarray(r["relative_translation_m"]) for r in held) if held else np.zeros(3)
     max_slip = max((float(np.linalg.norm(np.asarray(r["relative_translation_m"])-reference_relative)) for r in held), default=0.)
+    maximum_allowed_slip = float(
+        config.get("execution_dynamics", {}).get("maximum_carry_slip_m", 0.01)
+    )
     maximum_efforts = np.max(np.abs([r["actuation_N_Nm"] for r in trace]), axis=0)
     limits = np.array([a.effort_limit() for a in actuators])
     efforts_within_limits = bool(np.all(maximum_efforts <= limits + 1e-8))
     report = {"satisfied": bool(lifted and carried and settled and not unexpected and workspace
-                               and bilateral_fraction == 1. and efforts_within_limits),
+                               and bilateral_fraction == 1. and efforts_within_limits
+                               and max_slip <= maximum_allowed_slip),
               "lifted_with_bilateral_contact": lifted, "carried_to_room1_with_bilateral_contact": carried,
               "released_and_settled_in_bin": settled, "unexpected_contact_count": len(unexpected),
               "first_unexpected_contact": unexpected[0] if unexpected else None,
@@ -146,6 +150,8 @@ def execute(config, reference, *, time_step=.001, time_scale=3.0,
               "base_workspace_bounds_satisfied": workspace,
               "held_bilateral_contact_fraction": bilateral_fraction,
               "maximum_relative_translation_change_during_carry_m": max_slip,
+              "maximum_allowed_relative_translation_change_m": maximum_allowed_slip,
+              "carry_slip_satisfied": max_slip <= maximum_allowed_slip,
               "final_max_cup_speed_m_s": max(row["cup_speed_m_s"] for row in final),
               "final_max_cup_angular_speed_rad_s": max(row["cup_angular_speed_rad_s"] for row in final),
               "actuator_effort_limits_N_Nm": limits.tolist(),

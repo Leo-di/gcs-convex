@@ -19,6 +19,8 @@ semantic_monitor:
 validation:
   # Reject penetration or missing bilateral fingertip contact.
   require_grasp_geometry: true
+  # Make doorway clearance explicit instead of relying on a global minimum.
+  minimum_wall_clearance_m: 0.02
 
 ik_solver:
   max_restarts: 12
@@ -277,6 +279,19 @@ manipulation_gcs:
   enabled: true
   joint_radius: 0.30
   seed_distance_threshold: 0.35
+  # Placement/retreat endpoints retain 3 mm checked clearance.  This must be
+  # smaller than that endpoint clearance; the carrying cover keeps its 5 mm
+  # margin independently.
+  configuration_space_margin: 0.002
+  # Near contact, IRIS with whole-finger filtering can admit unsafe shortcuts.
+  # Use an ordered convex corridor around the collision-checked Cartesian
+  # reference, still solved by Drake GCS and gated by the full main scene.
+  pregrasp_region_method: reference_corridor
+  # Preserve the deliberately separated release-retreat path.  An unrestricted
+  # IRIS shortcut was kinematically collision-free but too close for tracking.
+  retreat_region_method: reference_corridor
+  contact_corridor_stride: 2
+  contact_corridor_padding: 0.003
   total_delta: 0.05
   max_bridges: 8
 
@@ -330,6 +345,9 @@ delivery_task:
     - [-2.35, 1.30, 1.5707963267948966]
   place_cup_center: [-2.35, 2.15, 0.886]
   preplace_height: 0.22
+  # After opening, move away from the free cup before lifting the arm.
+  retreat_separation_m: 0.08
+  retreat_lift_m: 0.18
   position_tolerance: 0.005
   orientation_tolerance: 0.06
   minimum_clearance: 0.003

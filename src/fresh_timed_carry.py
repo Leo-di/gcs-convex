@@ -4,13 +4,13 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 from .benchmark_semantic_baselines import atomic_json,file_hash
+from .scene_spec import load_candidate_library_config
 from .transfer_scene_experiment import run_process
 
 ROOT=Path('outputs/results/fresh_timed_carry_v1')
 WEB=Path('outputs/results/grasp_fix_web/planar/fresh_timed_carry')
 METHODS=['gcs50','portal50']
 WINDOWS={'relative_105':1.05,'relative_115':1.15,'relative_130':1.30,'loose_80':None}
-BASE=Path('outputs/results/semantic_candidates/library/config.json')
 REFINEMENT=Path('outputs/results/navigation_refresh_diagnostic_v1/full_refinement.py')
 
 def lower_bound(start,goal,limits):
@@ -19,7 +19,7 @@ def lower_bound(start,goal,limits):
     return float(np.max(np.abs(np.asarray(goal)-start)/limits))
 
 def design():
-    base=json.loads(BASE.read_text());base['pick_task'].update(collision_checked_pregrasp=True,cartesian_approach=True)
+    base=load_candidate_library_config();base['pick_task'].update(collision_checked_pregrasp=True,cartesian_approach=True)
     base['iris_np2_cover']['counterexample_refinement']=True
     rng=np.random.default_rng(20261012);scenes={};changes={};cases=[]
     for i in range(16):

@@ -20,7 +20,7 @@ from .gcs_whole_body_planner import (
     plan_carry_whole_body_gcs,
     plan_to_dict as whole_body_plan_to_dict,
 )
-from .grasp_planner import plan_pick, cartesian_arm_path
+from .grasp_planner import plan_pick, cartesian_arm_path, solve_arm_ik
 from .iris_region_generator import (
     cover_to_dict as iris_cover_to_dict,
     generate_carrying_iris_cover,
@@ -33,7 +33,13 @@ from .semantic_product_planner import plan_semantic_product, plan_to_dict
 from .task_semantics import near_pickup_residual, cup_bin_residuals, pick_guard_residuals, place_guard_residuals
 from .semantic_monitor import monitor_delivery
 from .candidate_planner import CandidateRejected, select_candidate
-from .grasp_audit import measure_cup_gripper, summarize_grasp_audit, annotated_scene_html
+from .grasp_audit import (
+    annotated_scene_html,
+    measure_cup_gripper,
+    measure_wall_clearance,
+    summarize_grasp_audit,
+    summarize_wall_clearance,
+)
 
 
 @dataclass(frozen=True)
@@ -134,6 +140,57 @@ def _append_configuration_frames(
         )
 
 
+def _audit_manipulation_phase_geometry(
+    scene: SceneHandles,
+    mode: str,
+    configurations: np.ndarray,
+    *,
+    X_GC: RigidTransform | None = None,
+    final_cup_pose: RigidTransform | None = None,
+) -> dict:
+    """Audit a mode trajectory in the unfiltered main Drake scene.
+
+    The mode-specific IRIS checker deliberately filters expected contact
+    pairs.  That checker is suitable for growing regions, but it must not be
+    the final authority for a trajectory because a convex shortcut can pass
+    through a non-contact part of a finger.  This second gate uses the main
+    scene and the same named-fingertip rules as the full delivery audit.
+    """
+
+    attached = mode in {"grasp", "release"}
+    gripper_q = (
+        scene.gripper_closed_positions
+        if attached
+        else scene.gripper_open_positions
+    )
+    if attached and X_GC is None:
+        raise ValueError(f"Manipulation mode {mode} requires X_GC for audit.")
+    if mode == "retreat" and final_cup_pose is None:
+        raise ValueError("Manipulation mode retreat requires final_cup_pose for audit.")
+
+    rows = []
+    for q in np.asarray(configurations, dtype=float):
+        set_robot_configuration(scene, q[:3], q[3:], gripper_q)
+        if attached:
+            cup_pose = _attached_cup_pose(scene, q[:3], q[3:], X_GC)
+        elif mode == "retreat":
+            cup_pose = final_cup_pose
+        else:
+            cup_pose = scene.cup_initial_pose
+        scene.plant.SetFreeBodyPose(
+            scene.plant_context,
+            scene.cup_body,
+            cup_pose,
+        )
+        rows.append(
+            {
+                "attached": attached,
+                "cup_gripper_audit": measure_cup_gripper(scene),
+            }
+        )
+    return summarize_grasp_audit(rows)
+
+
 def _try_manipulation_phase(
     scene: SceneHandles,
     mode: str,
@@ -168,7 +225,26 @@ def _try_manipulation_phase(
             "error": str(error),
         }
         return None
-    attempt[f"{mode}_manipulation_gcs"] = phase_plan_to_dict(plan)
+    summary = phase_plan_to_dict(plan)
+    geometry_audit = _audit_manipulation_phase_geometry(
+        scene,
+        mode,
+        plan.configurations,
+        X_GC=kwargs.get("X_GC"),
+        final_cup_pose=kwargs.get("final_cup_pose"),
+    )
+    summary["main_scene_geometry_audit"] = geometry_audit
+    if not geometry_audit["satisfied"]:
+        attempt[f"{mode}_manipulation_gcs"] = {
+            "status": "fallback_to_reference",
+            "error": (
+                "Mode GCS trajectory failed the unfiltered main-scene "
+                "cup/gripper geometry audit."
+            ),
+            "rejected_plan": summary,
+        }
+        return None
+    attempt[f"{mode}_manipulation_gcs"] = summary
     return plan
 
 
@@ -517,12 +593,98 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
             )
         )
 
-    # Retract the arm with the cup resting in the bin as a static obstacle.
-    retreat_path = (cartesian_arm_path(scene, delivery_plan.base_q,
-                                       delivery_plan.place_q, delivery_plan.preplace_q, 35,
-                                       stage="retreat")
-                    if scene.config.get("validation", {}).get("require_grasp_geometry", False)
-                    else _interpolate(delivery_plan.place_q, delivery_plan.preplace_q, 35))
+    # Retract away from the released cup before lifting.  A direct vertical
+    # retreat passed the kinematic audit with only millimetres of palm
+    # clearance, but tracking error caused real SAP contact during execution.
+    # Build a clearance waypoint along the cup-to-gripper separation vector,
+    # then lift from that already-separated pose.
+    if scene.config.get("validation", {}).get("require_grasp_geometry", False):
+        task = scene.config["delivery_task"]
+        set_robot_configuration(
+            scene,
+            delivery_plan.base_q,
+            delivery_plan.place_q,
+            scene.gripper_open_positions,
+        )
+        X_WG_place = scene.gripper_body.body_frame().CalcPoseInWorld(
+            scene.plant_context
+        )
+        cup_to_gripper = (
+            X_WG_place.translation() - delivery_plan.place_cup_pose.translation()
+        )
+        separation_norm = float(np.linalg.norm(cup_to_gripper))
+        if separation_norm < 1e-6:
+            raise CandidateRejected(
+                "Cannot construct release retreat direction",
+                {"cup_to_gripper_norm_m": separation_norm},
+            )
+        away_direction = cup_to_gripper / separation_norm
+        clearance_translation = (
+            X_WG_place.translation()
+            + float(task.get("retreat_separation_m", 0.08)) * away_direction
+        )
+        grasp_point = np.asarray(
+            scene.config["gripper"]["grasp_point_in_body"], dtype=float
+        )
+        clearance_target = (
+            RigidTransform(X_WG_place.rotation(), clearance_translation)
+            .multiply(grasp_point)
+        )
+        clearance_q = solve_arm_ik(
+            scene,
+            stage="retreat_separate",
+            base_q=delivery_plan.base_q,
+            target_position=clearance_target,
+            initial_arm_q=delivery_plan.place_q,
+            position_tolerance=0.0002,
+            minimum_clearance=float(task["minimum_clearance"]),
+            target_orientation=X_WG_place.rotation(),
+            orientation_tolerance=0.005,
+        )
+        set_robot_configuration(
+            scene,
+            delivery_plan.base_q,
+            clearance_q,
+            scene.gripper_open_positions,
+        )
+        X_WG_clearance = scene.gripper_body.body_frame().CalcPoseInWorld(
+            scene.plant_context
+        )
+        lift_target = X_WG_clearance.multiply(grasp_point) + np.array(
+            [0.0, 0.0, float(task.get("retreat_lift_m", 0.18))]
+        )
+        retreat_q = solve_arm_ik(
+            scene,
+            stage="retreat_lift",
+            base_q=delivery_plan.base_q,
+            target_position=lift_target,
+            initial_arm_q=clearance_q,
+            position_tolerance=0.0002,
+            minimum_clearance=float(task["minimum_clearance"]),
+            target_orientation=X_WG_clearance.rotation(),
+            orientation_tolerance=0.005,
+        )
+        separate_path = cartesian_arm_path(
+            scene,
+            delivery_plan.base_q,
+            delivery_plan.place_q,
+            clearance_q,
+            25,
+            stage="retreat_separate",
+        )
+        lift_path = cartesian_arm_path(
+            scene,
+            delivery_plan.base_q,
+            clearance_q,
+            retreat_q,
+            35,
+            stage="retreat_lift",
+        )
+        retreat_path = np.vstack([separate_path, lift_path[1:]])
+    else:
+        retreat_path = _interpolate(
+            delivery_plan.place_q, delivery_plan.preplace_q, 35
+        )
     retreat_gcs = _try_manipulation_phase(
         scene, "retreat", _with_fixed_base(delivery_plan.base_q, retreat_path),
         attempt, manipulation_scene_cache, final_cup_pose=delivery_plan.place_cup_pose,
@@ -580,6 +742,7 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
                 "gripper_pose": scene.gripper_body.body_frame().CalcPoseInWorld(scene.plant_context).GetAsMatrix4().tolist(),
                 "attached": bool(frame.cup_grasped),
                 "cup_gripper_audit": measure_cup_gripper(scene),
+                "wall_clearance": measure_wall_clearance(scene),
                 "room1_residual": base_inside_region_residual(frame.base_q, regions["room1"]),
                 "room2_residual": base_inside_region_residual(frame.base_q, regions["room2"]),
                 "cup_grasped": frame.cup_grasped,
@@ -597,14 +760,24 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
     )
     monitor_report = monitor_delivery(trace, scene.config)
     grasp_audit = summarize_grasp_audit(trace)
+    required_wall_clearance = float(
+        scene.config.get("validation", {}).get("minimum_wall_clearance_m", 0.0)
+    )
+    wall_clearance_audit = summarize_wall_clearance(trace, required_wall_clearance)
     if scene.config.get("validation", {}).get("require_grasp_geometry", False) and not grasp_audit["satisfied"]:
         violation = grasp_audit.get("first_violation")
         if violation is not None:
             grasp_audit["first_violation_frame"] = trace[violation["index"]]
         raise CandidateRejected("Unfiltered grasp geometry failed along the path", grasp_audit)
-    if not collision_free or not monitor_report["satisfied"] or not semantic_sequence_satisfied:
+    if (
+        not collision_free
+        or not wall_clearance_audit["satisfied"]
+        or not monitor_report["satisfied"]
+        or not semantic_sequence_satisfied
+    ):
         raise CandidateRejected("Full delivery validation failed", {
             "collision_free": collision_free,
+            "wall_clearance_audit": wall_clearance_audit,
             "first_collision": next((r for r in trace if r["collision_residual"] < 0), None),
             "first_violation": monitor_report["first_violation"],
             "semantic_sequence_satisfied": semantic_sequence_satisfied,
@@ -614,11 +787,13 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
         "semantic_monitor_satisfied": monitor_report["satisfied"],
         "minimum_signed_distance": minimum_distance,
         "grasp_geometry_satisfied": grasp_audit["satisfied"],
+        "wall_clearance_satisfied": wall_clearance_audit["satisfied"],
         "physical_grasp_validated": False,
     }
     return {
         "frames": frames, "trace": trace, "monitor_report": monitor_report,
         "grasp_audit": grasp_audit,
+        "wall_clearance_audit": wall_clearance_audit,
         "product_plan": product_plan, "outbound_gcs": outbound_gcs,
         "whole_body_carry": whole_body_carry, "doorway_iris": doorway_iris,
         "carrying_iris_cover": carrying_iris_cover, "minimum_distance": minimum_distance,
@@ -664,13 +839,20 @@ def main() -> None:
     scene.meshcat.StopRecording()
     scene.meshcat.PublishRecording()
     (args.output_dir / "review_scene.html").write_text(
-        annotated_scene_html(scene.meshcat.StaticHtml(), selected["grasp_audit"]), encoding="utf-8")
+        annotated_scene_html(
+            scene.meshcat.StaticHtml(),
+            selected["grasp_audit"],
+            selected["wall_clearance_audit"],
+        ),
+        encoding="utf-8",
+    )
 
     result = {
         "selected_candidate": candidate_report["selected_candidate"],
         "validation_scope": "sampled_kinematic_scene_with_collision_filters",
         "grasp_geometry_satisfied": selected["grasp_audit"]["satisfied"],
         "physical_grasp_validated": False,
+        "wall_clearance_audit": selected["wall_clearance_audit"],
         "candidate_attempts": candidate_report,
         "scenario": scene.config["scenario"]["name"],
         "instruction": scene.config["scenario"]["instruction"],
@@ -715,6 +897,9 @@ def main() -> None:
     monitor_path = args.output_dir / "semantic_monitor.json"
     monitor_path.write_text(json.dumps(monitor_report, indent=2), encoding="utf-8")
     (args.output_dir / "grasp_geometry_audit.json").write_text(json.dumps(selected["grasp_audit"], indent=2), encoding="utf-8")
+    (args.output_dir / "wall_clearance_audit.json").write_text(
+        json.dumps(selected["wall_clearance_audit"], indent=2), encoding="utf-8"
+    )
     (results_path.parent / "scene_config_snapshot.json").write_text(json.dumps(scene.config, indent=2), encoding="utf-8")
     results_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
     trace_path.write_text(json.dumps(trace, indent=2), encoding="utf-8")
@@ -745,6 +930,11 @@ def main() -> None:
     print(f"Saved IRIS-NP2 carrying cover: {cover_path}")
     print("Collision free:", collision_free)
     print("Minimum signed distance:", minimum_distance)
+    print(
+        "Payload/robot wall clearance:",
+        selected["wall_clearance_audit"]["minimum_payload_wall_distance_m"],
+        selected["wall_clearance_audit"]["minimum_robot_wall_distance_m"],
+    )
     print("Cup in dropoff bin:", result["cup_in_dropoff_bin"])
     print("Semantic sequence satisfied:", semantic_sequence_satisfied)
     print(

@@ -56,7 +56,8 @@ def main():
     if args.prepare:prepare(root,args.prepare);return
     if root.exists():raise RuntimeError('Output exists; refusing to mix runs')
     root.mkdir(parents=True)
-    base=json.loads(Path('outputs/results/semantic_candidates/library/config.json').read_text())
+    from .scene_spec import load_candidate_library_config
+    base=load_candidate_library_config()
     if args.repaired:
         base['pick_task']['collision_checked_pregrasp']=True
         base['iris_np2_cover']['counterexample_refinement']=True

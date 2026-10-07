@@ -1,10 +1,10 @@
 """Prespecified unseen combinations; no rejection sampling after outcomes."""
 import copy,json
-from pathlib import Path
 import numpy as np
+from .scene_spec import load_candidate_library_config
 
 def design():
-    base=json.loads(Path('outputs/results/semantic_candidates/library/config.json').read_text())
+    base=load_candidate_library_config()
     base['pick_task'].update(collision_checked_pregrasp=True,cartesian_approach=True)
     base['iris_np2_cover']['counterexample_refinement']=True
     rng=np.random.default_rng(20261008);scenes={};changes={};cases=[]
