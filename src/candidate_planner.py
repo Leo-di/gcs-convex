@@ -14,6 +14,15 @@ import numpy as np
 from .pickup_candidates import generate_pickup_candidates
 
 
+class _ProgressAttempt(dict):
+    """A normal JSON-serializable attempt record with live stage logging."""
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        if key == "stage":
+            print(f"[candidate {self.get('name', '?')}] stage={value}", flush=True)
+
+
 class CandidateRejected(RuntimeError):
     def __init__(self, message: str, details: dict | None = None):
         super().__init__(message)
@@ -65,7 +74,9 @@ def select_candidate(scene, evaluator: Callable, *, report_path: Path | None = N
 
     save()
     for name, q in normalized:
-        attempt = {"name": name, "base_q": q.tolist(), "stage": "start", "status": "running"}
+        attempt = _ProgressAttempt(
+            name=name, base_q=q.tolist(), stage="start", status="running"
+        )
         report["attempts"].append(attempt)
         save()
         began = time.perf_counter()

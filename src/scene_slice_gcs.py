@@ -15,8 +15,9 @@ from .planar_bubble_demo import graph_connects
 
 
 class SliceOracle:
-    def __init__(self, scene, arm, gripper, yaw=0.):
+    def __init__(self, scene, arm, gripper, yaw=0., max_distance=2.):
         self.scene, self.arm, self.gripper, self.yaw = scene, arm, gripper, yaw
+        self.max_distance = float(max_distance)
         self.robot = {scene.base_instance, scene.arm_instance, scene.gripper_instance}
         self.calls = 0
 
@@ -28,7 +29,7 @@ class SliceOracle:
         inspector = query.inspector()
         environment, self_distance = 2., float("inf")
         closest = None
-        for pair in query.ComputeSignedDistancePairwiseClosestPoints(2.):
+        for pair in query.ComputeSignedDistancePairwiseClosestPoints(self.max_distance):
             bodies = [s.plant.GetBodyFromFrameId(inspector.GetFrameId(g)) for g in (pair.id_A, pair.id_B)]
             count = sum(b.model_instance() in self.robot for b in bodies)
             if count == 1 and pair.distance < environment:

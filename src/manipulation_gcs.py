@@ -113,6 +113,22 @@ class ManipulationPhasePlan:
     region_results: tuple[IrisRegionResult, ...] = field(repr=False, default=())
 
 
+@dataclass(frozen=True)
+class ManipulationPhaseCover:
+    """Collision-checked mode cover generated without a separate GCS solve."""
+
+    mode: str
+    reference: np.ndarray
+    regions: tuple[Any, ...]
+    edges: tuple[tuple[int, int], ...]
+    seed_count: int
+    bridged: bool
+    iris_solve_seconds: float
+    region_method: str
+    machinery: Any = field(repr=False)
+    region_results: tuple[IrisRegionResult, ...] = field(repr=False, default=())
+
+
 def phase_plan_to_dict(plan: ManipulationPhasePlan) -> dict[str, Any]:
     total_holdout = sum(item.holdout_samples for item in plan.region_results)
     total_collisions = sum(item.holdout_collisions for item in plan.region_results)
@@ -198,6 +214,9 @@ def _manipulation_spec(config: dict[str, Any]) -> dict[str, Any]:
         "max_bridges": int(section.get("max_bridges", 8)),
         "pregrasp_region_method": str(
             section.get("pregrasp_region_method", "iris_np2")
+        ),
+        "grasp_region_method": str(
+            section.get("grasp_region_method", "iris_np2")
         ),
         "retreat_region_method": str(
             section.get("retreat_region_method", "iris_np2")
@@ -332,7 +351,9 @@ def _reference_corridor_cover(
 
 
 def _site_region_spec(config: dict[str, Any], site: str) -> dict[str, Any]:
-    name = SITE_REGION_NAMES[site]
+    name = config.get("manipulation_gcs", {}).get("site_regions", {}).get(
+        site, SITE_REGION_NAMES[site]
+    )
     for spec in config["gcs_base_planning"]["regions"]:
         if spec["name"] == name:
             return spec
@@ -511,7 +532,8 @@ def plan_manipulation_phase(
     X_GC: Any = None,
     final_cup_pose: Any = None,
     scene_cache: dict[str, SceneHandles] | None = None,
-) -> ManipulationPhasePlan:
+    solve: bool = True,
+) -> ManipulationPhasePlan | ManipulationPhaseCover:
     """Grow mode regions along the reference and optimize through them.
 
     Raises ``RuntimeError`` when the phase cannot be completed (seed
@@ -642,6 +664,20 @@ def plan_manipulation_phase(
                 if regions[i].IntersectsWith(regions[j]):
                     edges.extend([(i, j), (j, i)])
         region_method = "iris_np2"
+
+    if not solve:
+        return ManipulationPhaseCover(
+            mode=mode,
+            reference=reference,
+            regions=tuple(regions),
+            edges=tuple(edges),
+            seed_count=len(cover_seed),
+            bridged=bridged,
+            iris_solve_seconds=iris_seconds,
+            region_method=region_method,
+            machinery=machinery,
+            region_results=tuple(results),
+        )
 
     base_spec = config["gcs_base_planning"]
     planner_spec = config["whole_body_planning"]

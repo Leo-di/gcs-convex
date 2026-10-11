@@ -12,11 +12,17 @@ from .gcs_base_planner import GcsBasePlan,_label_region_sequence
 from .scene_slice_gcs import SliceOracle
 
 
-def make_cover(query,boxes,start,goal,lower,upper,spacing=.20,margin=.0201):
+def make_cover(query,boxes,start,goal,lower,upper,spacing=.20,margin=.0201,max_radius=.65):
     seeds=[np.asarray(start),np.asarray(goal)]
     for box in boxes:
         lo=np.maximum(box['lower'],lower);hi=np.minimum(box['upper'],upper)
-        seeds.extend(np.array([x,y]) for x in np.arange(lo[0],hi[0]+spacing*.1,spacing) for y in np.arange(lo[1],hi[1]+spacing*.1,spacing))
+        x_samples=np.arange(lo[0],hi[0]+spacing*.1,spacing)
+        y_samples=np.arange(lo[1],hi[1]+spacing*.1,spacing)
+        # Include the lane centerline as well as the lower-anchored lattice.
+        # Otherwise a narrow lane can leave the endpoint disk isolated even
+        # when a collision-free centerline corridor exists between samples.
+        y_samples=np.unique(np.r_[y_samples,0.5*(lo[1]+hi[1])])
+        seeds.extend(np.array([x,y]) for x in x_samples for y in y_samples)
     seen=set();regions=[];records=[]
     for xy in seeds:
         key=tuple(np.round(xy,8))
@@ -24,7 +30,7 @@ def make_cover(query,boxes,start,goal,lower,upper,spacing=.20,margin=.0201):
         seen.add(key)
         distance,self_distance,_=query(xy)
         if self_distance < -1e-7:raise RuntimeError('Outbound fixed posture has self collision')
-        radius=min(.65,float(distance)-margin)
+        radius=min(float(max_radius),float(distance)-margin)
         if radius<.025:continue
         disk=Hyperellipsoid.MakeHypersphere(radius,xy)
         for box in boxes:
@@ -66,14 +72,23 @@ def select_navigation_arm(scene, base_positions):
     finite deterministic search, not a posture certificate: the sampled
     outbound audit and the dense replay audit remain the gate.
     """
-    candidates = [
+    configured = scene.config.get("pick_task", {}).get("navigation_arm_q")
+    candidates = []
+    if configured is not None:
+        configured = np.asarray(configured, dtype=float)
+        if configured.shape != (7,):
+            raise ValueError("pick_task.navigation_arm_q must contain seven joint positions")
+        candidates.append(configured)
+    candidates.extend([
         np.array([0.0, -0.3, 0.0, -1.2, 0.0, 0.0, 0.0]),
         np.array([-0.5, -0.3, 0.0, -1.2, 0.0, 0.0, 0.0]),
         np.array([-0.5, -0.5, 0.0, -1.4, 0.0, 0.0, 0.0]),
         np.array([0.0, -0.7, 0.0, -1.4, 0.0, 0.0, 0.0]),
-    ]
+    ])
     for arm in candidates:
-        oracle = SliceOracle(scene, arm, scene.gripper_open_positions)
+        # Only the 3 cm acceptance threshold matters here; all penetrations
+        # remain included when Drake is queried with this positive cutoff.
+        oracle = SliceOracle(scene, arm, scene.gripper_open_positions, max_distance=.03)
         ok = True
         for q in base_positions:
             q = np.asarray(q, float)
@@ -87,14 +102,18 @@ def select_navigation_arm(scene, base_positions):
     return scene.arm_home_positions
 
 
-def plan_geometry_outbound(scene,start,goal,*,allowed_region_names,arm_q=None):
+def plan_geometry_outbound(scene,start,goal,*,allowed_region_names,arm_q=None,spacing=.30,max_radius=.65):
     start=np.asarray(start,float);goal=np.asarray(goal,float)
     if abs(start[2]-goal[2])>1e-10:raise RuntimeError('Geometry outbound slice requires identical start/goal yaw')
     config=scene.config;spec=config['gcs_base_planning'];boxes=[r for r in spec['regions'] if r['name'] in allowed_region_names and r['yaw_bounds'][0]<=start[2]<=r['yaw_bounds'][1]]
     if not boxes:raise RuntimeError('No allowed semantic lane at the fixed yaw')
     arm=scene.arm_home_positions if arm_q is None else np.asarray(arm_q,float)
-    oracle=SliceOracle(scene,arm,scene.gripper_open_positions,yaw=float(start[2]));begin=time.perf_counter()
-    regions,records=make_cover(oracle.query,boxes,start[:2],goal[:2],np.array(config['robot']['lower_limits'][:2]),np.array(config['robot']['upper_limits'][:2]),spacing=.30)
+    # The cover caps radii at .65 m and subtracts a .0201 m margin.  Distances
+    # above .6701 m cannot change any generated region, so bound the Drake
+    # query at that exact threshold to avoid materializing irrelevant pairs.
+    margin=.0201
+    oracle=SliceOracle(scene,arm,scene.gripper_open_positions,yaw=float(start[2]),max_distance=float(max_radius)+margin);begin=time.perf_counter()
+    regions,records=make_cover(oracle.query,boxes,start[:2],goal[:2],np.array(config['robot']['lower_limits'][:2]),np.array(config['robot']['upper_limits'][:2]),spacing=spacing,margin=margin,max_radius=max_radius)
     sources=[i for i,r in enumerate(regions) if r.PointInSet(start[:2],1e-9)];targets=[i for i,r in enumerate(regions) if r.PointInSet(goal[:2],1e-9)]
     if not sources or not targets:raise RuntimeError('Current-geometry outbound cover does not cover start or goal')
     # Geometric intersection pruning precedes official GCS optimization.
@@ -121,7 +140,7 @@ def plan_geometry_outbound(scene,start,goal,*,allowed_region_names,arm_q=None):
     distances=[oracle.query(x) for x in xy];minimum=min(d[0] for d in distances)
     if minimum<.02-1e-6 or min(d[1] for d in distances)<-1e-7:raise RuntimeError('Current-geometry outbound trajectory failed independent numerical audit')
     qs=np.column_stack([xy,np.full(len(xy),start[2])]);plan=GcsBasePlan(qs,elapsed,duration,float(np.linalg.norm(np.diff(xy,axis=0),axis=1).sum()),0.,float(result.get_optimal_cost()),result.get_solver_id().name(),trajectory.get_number_of_segments(),_label_region_sequence(qs,boxes))
-    return plan,{'algorithm':'Drake GcsTrajectoryOptimization on current-geometry disks intersected with allowed lane boxes','fixed_arm_q':arm.tolist(),'fixed_yaw':float(start[2]),'region_count':len(regions),'spacing':.30,'margin_m':.0201,'prepare_seconds':prepared,'solve_seconds':elapsed,'audit_samples':len(xy),'minimum_distance_m':minimum,'oracle_calls':oracle.calls,'scope':'Fixed-posture translation slice, original semantic lanes retained; failure does not prove whole-body infeasibility.'}
+    return plan,{'algorithm':'Drake GcsTrajectoryOptimization on current-geometry disks intersected with allowed lane boxes','fixed_arm_q':arm.tolist(),'fixed_yaw':float(start[2]),'region_count':len(regions),'spacing':float(spacing),'margin_m':.0201,'prepare_seconds':prepared,'solve_seconds':elapsed,'audit_samples':len(xy),'minimum_distance_m':minimum,'oracle_calls':oracle.calls,'scope':'Fixed-posture translation slice, original semantic lanes retained; failure does not prove whole-body infeasibility.'}
 
 
 def _se2_yaw_slices(boxes,start_yaw,goal_yaw,yaw_step,yaw_window):
@@ -153,7 +172,7 @@ def plan_geometry_outbound_se2(scene,start,goal,*,allowed_region_names,yaw_step=
     lower=np.array(config['robot']['lower_limits'][:2]);upper=np.array(config['robot']['upper_limits'][:2])
     slices=_se2_yaw_slices(boxes,start[2],goal[2],yaw_step,yaw_window)
     arm=scene.arm_home_positions if arm_q is None else np.asarray(arm_q,float)
-    oracle=SliceOracle(scene,arm,scene.gripper_open_positions,yaw=float(start[2]));begin=time.perf_counter()
+    oracle=SliceOracle(scene,arm,scene.gripper_open_positions,yaw=float(start[2]),max_distance=.6701);begin=time.perf_counter()
     cache={}
     def dist_at(xy,yaw):
         key=(round(float(xy[0]),5),round(float(xy[1]),5),round(float(yaw),4))

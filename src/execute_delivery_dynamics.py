@@ -35,6 +35,17 @@ def execute(config, reference, *, time_step=.001, time_scale=3.0,
         scene.meshcat.StartRecording()
     trace, unexpected = [], []
     initial_cup_z = float(scene.cup_initial_pose.translation()[2])
+    doorway = config.get("doorway_semantics", {})
+    door_x = float(doorway.get("plane_coordinate_m", 0.0))
+    aperture_lo, aperture_hi = doorway.get("aperture_y_bounds_m", [-float("inf"), float("inf")])
+    base_half = np.asarray(config["robot"]["size"][:2], dtype=float) / 2
+    min_base_door_clearance = float("inf")
+    max_ee_room2_depth = -float("inf")
+    arm_crossed_door = False
+    max_finger_force = {"left_finger": 0.0, "right_finger": 0.0}
+    arm_body_indices = [i for i in plant.GetBodyIndices(scene.arm_instance)
+                        if plant.get_body(i).name() != "iiwa_link_0"]
+    grasp_point = np.asarray(config["gripper"]["grasp_point_in_body"], dtype=float)
     for step in range(int(np.ceil(duration/control_dt))):
         t = min((step+1)*control_dt, duration)
         progress = np.clip((t-1.0)/frame_interval, 0, len(reference)-1)
@@ -66,6 +77,21 @@ def execute(config, reference, *, time_step=.001, time_scale=3.0,
                                        [-500,-500,-200], [500,500,200])
         plant.get_applied_generalized_force_input_port().FixValue(context, forces)
         simulator.AdvanceTo(t)
+        # Safety and semantic predicates are evaluated at every 10 ms control
+        # tick, separately from the 50 ms saved visualization trace.
+        base_now = np.asarray(plant.GetPositions(context, scene.base_instance), dtype=float)
+        yaw = float(base_now[2])
+        x_support = abs(np.cos(yaw)) * base_half[0] + abs(np.sin(yaw)) * base_half[1]
+        min_base_door_clearance = min(min_base_door_clearance,
+                                      float(door_x - (base_now[0] + x_support)))
+        X_WG_now = plant.EvalBodyPoseInWorld(context, scene.gripper_body)
+        ee_now = np.asarray(X_WG_now.multiply(grasp_point), dtype=float)
+        max_ee_room2_depth = max(max_ee_room2_depth, float(ee_now[0] - door_x))
+        for body_index in arm_body_indices:
+            body = plant.get_body(body_index)
+            p_WB = plant.EvalBodyPoseInWorld(context, body).translation()
+            if p_WB[0] > door_x + 1e-4 and aperture_lo <= p_WB[1] <= aperture_hi:
+                arm_crossed_door = True
         contacts = plant.get_contact_results_output_port().Eval(context)
         finger = {"left_finger": 0.0, "right_finger": 0.0}
         support = {"table": 0.0, "dropoff_bin": 0.0}
@@ -99,6 +125,8 @@ def execute(config, reference, *, time_step=.001, time_scale=3.0,
                     unexpected.append({"time_s": t, "bodies": names, "force_N": magnitude})
             elif magnitude > .1:
                 unexpected.append({"time_s": t, "bodies": names, "force_N": magnitude})
+        for side in max_finger_force:
+            max_finger_force[side] = max(max_finger_force[side], finger[side])
         if step % 5 == 0 or t == duration:
             cup = plant.EvalBodyPoseInWorld(context, scene.cup_body)
             gripper = plant.EvalBodyPoseInWorld(context, scene.gripper_body)
@@ -114,6 +142,18 @@ def execute(config, reference, *, time_step=.001, time_scale=3.0,
                           "cup_angular_speed_rad_s": float(np.linalg.norm(plant.EvalBodySpatialVelocityInWorld(context, scene.cup_body).rotational())),
                           "finger_contact_force_N": finger, "support_contact_force_N": support,
                           "base_tracking_error_m_rad": (qd["base_q"]-plant.GetPositions(context, scene.base_instance)).tolist(),
+                          "end_effector_position_world_m": ee_now.tolist(),
+                          "base_geometry_door_clearance_m": float(door_x - (base_now[0] + x_support)),
+                          "arm_crossed_doorway_so_far": bool(arm_crossed_door),
+                          "semantic": {
+                              "base_in_room1": bool(door_x - (base_now[0] + x_support) >= 0.0),
+                              "base_in_room2": bool(base_now[0] - x_support > door_x),
+                              "end_effector_in_room2": bool(ee_now[0] > door_x),
+                              "arm_crosses_door": bool(arm_crossed_door),
+                              "cup_in_room2": bool(cup.translation()[0] - config["objects"]["cup"]["radius"] > door_x),
+                              "cup_grasped": bool(min(finger.values()) > .05),
+                              "cup_retracted_to_room1": bool(cup.translation()[0] + config["objects"]["cup"]["radius"] < door_x and min(finger.values()) > .05),
+                          },
                           "arm_tracking_error_rad": (qd["arm_q"]-plant.GetPositions(context, scene.arm_instance)).tolist(),
                           "actuation_N_Nm": plant.get_net_actuation_output_port().Eval(context).tolist(),
                           "bin_residuals": cup_bin_residuals(cup.GetAsMatrix4(), config)})
@@ -124,7 +164,13 @@ def execute(config, reference, *, time_step=.001, time_scale=3.0,
         scene.meshcat.PublishRecording()
     final = [row for row in trace if row["time_s"] >= duration-1]
     lifted = any(row["cup_pose"][2][3] > initial_cup_z+.10 and min(row["finger_contact_force_N"].values()) > .05 for row in trace)
-    carried = any(row["cup_pose"][0][3] < -.1 and min(row["finger_contact_force_N"].values()) > .05 for row in trace)
+    # "Returned to Room 1" means the complete cup body has crossed the
+    # doorway plane, not that its center has crossed an unrelated 10 cm
+    # threshold. This is the same explicit geometric predicate used by the
+    # doorway task monitor below.
+    cup_radius = float(config["objects"]["cup"]["radius"])
+    carried = any(row["cup_pose"][0][3] + cup_radius < door_x and
+                  min(row["finger_contact_force_N"].values()) > .05 for row in trace)
     settled = all(min(row["bin_residuals"].values()) >= 0 and row["support_contact_force_N"]["dropoff_bin"] > .05
                   and max(row["finger_contact_force_N"].values()) < .05 and row["cup_speed_m_s"] < .01
                   and row["cup_angular_speed_rad_s"] < .05 for row in final)
@@ -142,11 +188,30 @@ def execute(config, reference, *, time_step=.001, time_scale=3.0,
     efforts_within_limits = bool(np.all(maximum_efforts <= limits + 1e-8))
     report = {"satisfied": bool(lifted and carried and settled and not unexpected and workspace
                                and bilateral_fraction == 1. and efforts_within_limits
-                               and max_slip <= maximum_allowed_slip),
+                               and max_slip <= maximum_allowed_slip
+                               and min_base_door_clearance >= float(doorway.get("minimum_base_geometry_clearance_m", 0.0))
+                               and max_ee_room2_depth >= float(doorway.get("minimum_ee_room2_depth_m", 0.0))
+                               and arm_crossed_door),
               "lifted_with_bilateral_contact": lifted, "carried_to_room1_with_bilateral_contact": carried,
               "released_and_settled_in_bin": settled, "unexpected_contact_count": len(unexpected),
               "first_unexpected_contact": unexpected[0] if unexpected else None,
               "unexpected_contacts": unexpected,
+              "doorway_semantics": {
+                  "base_entered_room2": bool(min_base_door_clearance < 0.0),
+                  "base_always_room1": bool(min_base_door_clearance >= 0.0),
+                  "minimum_base_geometry_clearance_to_door_plane_m": min_base_door_clearance,
+                  "required_base_geometry_clearance_m": float(doorway.get("minimum_base_geometry_clearance_m", 0.0)),
+                  "end_effector_entered_room2": bool(max_ee_room2_depth > 0.0),
+                  "maximum_end_effector_room2_depth_m": max_ee_room2_depth,
+                  "arm_crossed_doorway": arm_crossed_door,
+                  "maximum_grasp_contact_force_N": max_finger_force,
+                  "minimum_bilateral_force_during_carry_N": min((min(r["finger_contact_force_N"].values()) for r in held), default=None),
+                  "cup_initially_in_room2": bool(scene.cup_initial_pose.translation()[0] - config["objects"]["cup"]["radius"] > door_x),
+                  "cup_grasped_in_room2": bool(lifted and bilateral_fraction == 1.0),
+                  "cup_retracted_to_room1": carried,
+                  "non_expected_collision_count": len(unexpected),
+                  "safety_semantics_sampling_period_s": control_dt,
+              },
               "base_workspace_bounds_satisfied": workspace,
               "held_bilateral_contact_fraction": bilateral_fraction,
               "maximum_relative_translation_change_during_carry_m": max_slip,

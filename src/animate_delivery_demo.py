@@ -314,7 +314,22 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
     # Use every region valid in this mode (not just the product plan's chosen
     # shortest route) so the continuous planner can detour around a relocated
     # obstacle, e.g. a cart blocking room1_central_lane via room1_upper_lane.
-    allowed_region_names = [r["name"] for r in scene.config["gcs_base_planning"]["regions"]]
+    allowed_region_names = scene.config.get("pick_task", {}).get("outbound_regions")
+    if allowed_region_names is None:
+        allowed_region_names = [r["name"] for r in scene.config["gcs_base_planning"]["regions"]]
+    pickup_base_x_max = scene.config.get("pick_task", {}).get("pickup_base_x_max")
+    if pickup_base_x_max is not None:
+        # The configured staging site keeps the chassis on the Room 1 side
+        # of the doorway plane; the arm and gripper may reach through it.
+        base_region_x_max = float(pickup_base_x_max)
+        allowed_region_names = [
+            region["name"]
+            for region in scene.config["gcs_base_planning"]["regions"]
+            if region["name"] in allowed_region_names
+            and float(region["upper"][0]) <= base_region_x_max + 1e-9
+        ]
+        if not allowed_region_names:
+            raise CandidateRejected("No base-planning regions keep the base outside the doorway")
     # Empty-hand navigation uses a tucked arm posture: the home posture tilts
     # the arm forward so iiwa_link_6 reaches across the doorway plane and hits
     # the shared wall when the base detours above a relocated cart.
@@ -324,6 +339,7 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
         outbound_gcs, attempt["outbound_geometry"] = plan_geometry_outbound(
             scene, start_q, pickup_q, allowed_region_names=allowed_region_names,
             arm_q=navigation_arm,
+            spacing=float(scene.config.get("pick_task", {}).get("outbound_disk_spacing_m", 0.30)),
         )
     except RuntimeError:
         # The fixed-yaw translation slice is disconnected or has no path here
@@ -707,6 +723,16 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
     minimum_distance = float("inf")
     collision_free = True
     trace: list[dict[str, object]] = []
+    doorway_pick_phases = {
+        "navigate_to_pickup", "arm_to_pregrasp", "approach_cup",
+        "close_gripper", "lift_cup",
+    }
+    pickup_base_outside_violations = []
+    door_spec = scene.config.get("doorway_semantics", {})
+    door_x = float(door_spec.get("plane_coordinate_m", 0.0))
+    aperture_lo, aperture_hi = door_spec.get("aperture_y_bounds_m", [-float("inf"), float("inf")])
+    base_half_x, base_half_y = np.asarray(scene.config["robot"]["size"][:2], dtype=float) / 2
+    base_plane_clearances = []
     for index, frame in enumerate(frames):
         set_robot_configuration(
             scene,
@@ -727,14 +753,62 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
         )
         minimum_distance = min(minimum_distance, status.minimum_signed_distance)
         collision_free = collision_free and status.collision_free
+        base_outside_residual = (
+            float(scene.config["pick_task"]["pickup_base_x_max"] - frame.base_q[0])
+            if "pickup_base_x_max" in scene.config.get("pick_task", {})
+            else None
+        )
+        # SNOPT/GCS endpoint equality can differ by a few 1e-8 m; this is a
+        # numerical acceptance tolerance, while the geometric clearance audit
+        # below independently enforces the 0.10 m body-to-plane margin.
+        if frame.phase in doorway_pick_phases and base_outside_residual is not None and base_outside_residual < -1e-6:
+            pickup_base_outside_violations.append({
+                "index": index, "phase": frame.phase,
+                "base_q": frame.base_q.tolist(),
+                "residual_m": base_outside_residual,
+            })
+        gripper_pose = scene.gripper_body.body_frame().CalcPoseInWorld(scene.plant_context)
+        grasp_point = np.asarray(scene.config["gripper"]["grasp_point_in_body"], dtype=float)
+        ee_point = np.asarray(gripper_pose.multiply(grasp_point), dtype=float)
+        yaw = float(frame.base_q[2])
+        base_x_support = abs(np.cos(yaw)) * base_half_x + abs(np.sin(yaw)) * base_half_y
+        base_plane_clearance = float(door_x - (frame.base_q[0] + base_x_support))
+        base_plane_clearances.append(base_plane_clearance)
+        arm_link_positions = {}
+        for body_index in scene.plant.GetBodyIndices(scene.arm_instance):
+            body = scene.plant.get_body(body_index)
+            if body.name() == "iiwa_link_0":
+                continue
+            p = body.body_frame().CalcPoseInWorld(scene.plant_context).translation()
+            arm_link_positions[body.name()] = [float(p[0]), float(p[1]), float(p[2])]
+        arm_crosses_door = any(
+            p[0] > door_x + 1e-4 and aperture_lo <= p[1] <= aperture_hi
+            for p in arm_link_positions.values()
+        )
+        cup_center = np.asarray(frame.cup_pose.translation(), dtype=float)
+        cup_radius = float(scene.config["objects"]["cup"]["radius"])
+        cup_in_room2 = bool(cup_center[0] - cup_radius > door_x)
+        cup_retracted_to_room1 = bool(cup_center[0] + cup_radius < door_x and frame.cup_grasped)
+        ee_room2_residual = float(
+            ee_point[0] - regions["room2"].x_min
+        )
         trace.append(
             {
                 "index": index,
                 "phase": frame.phase,
                 "base_q": frame.base_q.tolist(),
                 "arm_q": frame.arm_q.tolist(),
-                "base_in_room1": base_inside_region(frame.base_q, regions["room1"]),
-                "base_in_room2": base_inside_region(frame.base_q, regions["room2"]),
+                "base_in_room1": bool(base_plane_clearance >= 0.0 and base_inside_region(frame.base_q, regions["room1"])),
+                "base_in_room2": bool(base_plane_clearance < 0.0),
+                "base_geometry_door_plane_clearance_m": base_plane_clearance,
+                "ee_in_room2": ee_room2_residual >= 0.0,
+                "ee_position_world": ee_point.tolist(),
+                "ee_room2_residual": ee_room2_residual,
+                "arm_link_positions_world": arm_link_positions,
+                "arm_crosses_door": arm_crosses_door,
+                "cup_in_room2": cup_in_room2,
+                "cup_retracted_to_room1": cup_retracted_to_room1,
+                "pickup_base_outside_residual": base_outside_residual,
                 "near_pickup_table": near_pickup_residual(frame.base_q, scene.config) >= 0,
                 "near_pickup_residual": near_pickup_residual(frame.base_q, scene.config),
                 "gripper_q": frame.gripper_q.tolist(),
@@ -764,6 +838,20 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
         scene.config.get("validation", {}).get("minimum_wall_clearance_m", 0.0)
     )
     wall_clearance_audit = summarize_wall_clearance(trace, required_wall_clearance)
+    doorway_audit = {
+        "base_in_room2": any(row["base_in_room2"] for row in trace),
+        "base_always_room1": all(row["base_in_room1"] for row in trace),
+        "minimum_base_geometry_clearance_to_door_plane_m": min(base_plane_clearances),
+        "minimum_required_base_geometry_clearance_m": float(door_spec.get("minimum_base_geometry_clearance_m", 0.0)),
+        "base_clearance_satisfied": min(base_plane_clearances) + 1e-8 >= float(door_spec.get("minimum_base_geometry_clearance_m", 0.0)),
+        "end_effector_entered_room2": any(row["ee_in_room2"] for row in trace),
+        "maximum_end_effector_room2_depth_m": max((row["ee_position_world"][0] - door_x for row in trace), default=0.0),
+        "arm_crossed_door": any(row["arm_crosses_door"] for row in trace),
+        "cup_initially_in_room2": bool(trace and trace[0]["cup_in_room2"]),
+        "cup_grasped": any(row["cup_grasped"] for row in trace),
+        "cup_retracted_to_room1": any(row["cup_retracted_to_room1"] for row in trace),
+        "scope": "Kinematic GCS/IRIS path audit; physical contact is separately checked by execute_delivery_dynamics.",
+    }
     if scene.config.get("validation", {}).get("require_grasp_geometry", False) and not grasp_audit["satisfied"]:
         violation = grasp_audit.get("first_violation")
         if violation is not None:
@@ -774,6 +862,13 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
         or not wall_clearance_audit["satisfied"]
         or not monitor_report["satisfied"]
         or not semantic_sequence_satisfied
+        or bool(pickup_base_outside_violations)
+        or not doorway_audit["base_clearance_satisfied"]
+        or not doorway_audit["base_always_room1"]
+        or not doorway_audit["end_effector_entered_room2"]
+        or not doorway_audit["arm_crossed_door"]
+        or not doorway_audit["cup_initially_in_room2"]
+        or not doorway_audit["cup_retracted_to_room1"]
     ):
         raise CandidateRejected("Full delivery validation failed", {
             "collision_free": collision_free,
@@ -781,6 +876,8 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
             "first_collision": next((r for r in trace if r["collision_residual"] < 0), None),
             "first_violation": monitor_report["first_violation"],
             "semantic_sequence_satisfied": semantic_sequence_satisfied,
+            "pickup_base_outside_violations": pickup_base_outside_violations,
+            "doorway_audit": doorway_audit,
         })
     attempt["validation"] = {
         "frames": len(frames), "collision_free": collision_free,
@@ -789,6 +886,7 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
         "grasp_geometry_satisfied": grasp_audit["satisfied"],
         "wall_clearance_satisfied": wall_clearance_audit["satisfied"],
         "physical_grasp_validated": False,
+        "doorway_audit": doorway_audit,
     }
     return {
         "frames": frames, "trace": trace, "monitor_report": monitor_report,
@@ -798,6 +896,7 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
         "whole_body_carry": whole_body_carry, "doorway_iris": doorway_iris,
         "carrying_iris_cover": carrying_iris_cover, "minimum_distance": minimum_distance,
         "collision_free": collision_free, "semantic_sequence_satisfied": semantic_sequence_satisfied,
+        "doorway_audit": doorway_audit,
         "semantic_sequence": semantic_sequence, "semantic_witness_frames": semantic_witness_frames,
         "manipulation_gcs": {
             mode: attempt.get(f"{mode}_manipulation_gcs")
@@ -853,6 +952,7 @@ def main() -> None:
         "grasp_geometry_satisfied": selected["grasp_audit"]["satisfied"],
         "physical_grasp_validated": False,
         "wall_clearance_audit": selected["wall_clearance_audit"],
+        "doorway_audit": selected["doorway_audit"],
         "candidate_attempts": candidate_report,
         "scenario": scene.config["scenario"]["name"],
         "instruction": scene.config["scenario"]["instruction"],

@@ -49,10 +49,16 @@ def pick_guard_residuals(observation, config) -> dict[str, float]:
     residuals = {
         "near_pickup": near_pickup_residual(observation["base_q"], config),
         "pickup_room": base_inside_region_residual(
-            observation["base_q"], semantic_regions(config)["room2"]),
+            observation["base_q"],
+            semantic_regions(config)[config.get("pick_task", {}).get("pickup_base_region", "room2")],
+        ),
         "grasp_alignment": alignment,
         "gripper_closed": float(tolerance - np.max(np.abs(np.asarray(observation["gripper_q"]) - closed))),
     }
+    if "pickup_base_x_max" in config.get("pick_task", {}):
+        residuals["pickup_base_outside_door"] = float(
+            config["pick_task"]["pickup_base_x_max"] - np.asarray(observation["base_q"])[0]
+        )
     if "gripper_rpy" in config["pick_task"]:
         target_rotation = RollPitchYaw(config["pick_task"]["gripper_rpy"]).ToRotationMatrix().matrix()
         error = np.arccos(np.clip((np.trace(target_rotation.T @ gripper[:3, :3]) - 1) / 2, -1, 1))

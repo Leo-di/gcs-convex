@@ -929,7 +929,22 @@ def build_scene(
     set_robot_configuration(scene, config["robot"]["start"])
     plant.SetFreeBodyPose(plant_context, cup_body, cup_initial_pose)
     if visualize:
-        meshcat.SetCameraPose([6.0, -8.0, 10.0], [-0.5, 0.0, 0.5])
+        visualization = config.get("visualization", {})
+        camera = visualization.get("global_camera", {})
+        eye = camera.get("eye", [2.8, -5.5, 7.5])
+        target = camera.get("target", [-0.5, 0.0, 0.55])
+        meshcat.SetCameraPose(eye, target)
+        # A translucent, visual-only sheet makes the semantic door plane
+        # explicit without adding collision geometry or changing planning.
+        plane = config.get("doorway_semantics")
+        if plane:
+            from pydrake.geometry import Rgba
+            meshcat.SetObject(
+                "/semantic/doorway_plane",
+                Box(0.008, float(plane["aperture_y_bounds_m"][1] - plane["aperture_y_bounds_m"][0]), 1.65),
+                Rgba(1.0, 0.62, 0.08, 0.16),
+            )
+            meshcat.SetTransform("/semantic/doorway_plane", RigidTransform([0.0, 0.0, 0.825]))
         diagram.ForcedPublish(root_context)
     return scene
 
