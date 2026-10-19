@@ -12,8 +12,13 @@ from .gcs_base_planner import GcsBasePlan,_label_region_sequence
 from .scene_slice_gcs import SliceOracle
 
 
-def make_cover(query,boxes,start,goal,lower,upper,spacing=.20,margin=.0201,max_radius=.65):
+def make_cover(query,boxes,start,goal,lower,upper,spacing=.20,margin=.0201,max_radius=.65,refinement_spacing=None,refinement_radius_threshold=None,extra_seeds=None):
     seeds=[np.asarray(start),np.asarray(goal)]
+    for seed in (() if extra_seeds is None else extra_seeds):
+        seed=np.asarray(seed,float)
+        if seed.shape!=(2,) or not np.all(np.isfinite(seed)):
+            raise ValueError("Extra navigation seeds must be finite XY points")
+        seeds.append(seed)
     for box in boxes:
         lo=np.maximum(box['lower'],lower);hi=np.minimum(box['upper'],upper)
         x_samples=np.arange(lo[0],hi[0]+spacing*.1,spacing)
@@ -23,6 +28,14 @@ def make_cover(query,boxes,start,goal,lower,upper,spacing=.20,margin=.0201,max_r
         # when a collision-free centerline corridor exists between samples.
         y_samples=np.unique(np.r_[y_samples,0.5*(lo[1]+hi[1])])
         seeds.extend(np.array([x,y]) for x in x_samples for y in y_samples)
+    coarse_keys={tuple(np.round(xy,8)) for xy in seeds}
+    if refinement_spacing is not None:
+        if not 0 < refinement_spacing < spacing:
+            raise ValueError('Refinement spacing must be positive and smaller than coarse spacing')
+        for box in boxes:
+            lo=np.maximum(box['lower'],lower);hi=np.minimum(box['upper'],upper)
+            seeds.extend(np.array([x,y]) for x in np.arange(lo[0],hi[0]+1e-8,refinement_spacing)
+                         for y in np.arange(lo[1],hi[1]+1e-8,refinement_spacing))
     seen=set();regions=[];records=[]
     for xy in seeds:
         key=tuple(np.round(xy,8))
@@ -32,6 +45,10 @@ def make_cover(query,boxes,start,goal,lower,upper,spacing=.20,margin=.0201,max_r
         if self_distance < -1e-7:raise RuntimeError('Outbound fixed posture has self collision')
         radius=min(float(max_radius),float(distance)-margin)
         if radius<.025:continue
+        # Fine seeds only in narrow-clearance areas. All coarse seeds and both
+        # endpoints remain; graph connectivity is checked explicitly below.
+        if key not in coarse_keys and radius >= (spacing if refinement_radius_threshold is None else refinement_radius_threshold):
+            continue
         disk=Hyperellipsoid.MakeHypersphere(radius,xy)
         for box in boxes:
             lo=np.maximum(box['lower'],lower);hi=np.minimum(box['upper'],upper)
@@ -39,6 +56,31 @@ def make_cover(query,boxes,start,goal,lower,upper,spacing=.20,margin=.0201,max_r
             region=Intersection(disk,HPolyhedron.MakeBox(lo,hi))
             regions.append(region);records.append({'center':xy.tolist(),'radius':radius,'lower':lo.tolist(),'upper':hi.tolist(),'label':box['name']})
     return regions,records
+
+
+def prune_contained_disks(regions, records):
+    """Remove only sets provably contained in a retained disk/box set.
+
+    Both disk containment and clipping-box containment are required. Thus the
+    union is preserved (up to floating point), without approximating obstacles
+    or replacing GCS by graph search. Large disks are considered first.
+    """
+    kept=[]
+    for i in sorted(range(len(records)), key=lambda i: (-records[i]['radius'], i)):
+        a=records[i]
+        if any(
+            (a.get('yaw_lo',0.) >= records[j].get('yaw_lo',0.))
+            and (a.get('yaw_hi',0.) <= records[j].get('yaw_hi',0.))
+            and np.all(np.asarray(a['lower']) >= np.asarray(records[j]['lower']))
+            and np.all(np.asarray(a['upper']) <= np.asarray(records[j]['upper']))
+            and np.linalg.norm(np.asarray(a['center'])-np.asarray(records[j]['center']))
+                + a['radius'] <= records[j]['radius']
+            for j in kept
+        ):
+            continue
+        kept.append(i)
+    kept.sort()
+    return [regions[i] for i in kept], [records[i] for i in kept]
 
 
 def clipped_disks_intersect(a,b):
@@ -102,7 +144,7 @@ def select_navigation_arm(scene, base_positions):
     return scene.arm_home_positions
 
 
-def plan_geometry_outbound(scene,start,goal,*,allowed_region_names,arm_q=None,spacing=.30,max_radius=.65):
+def plan_geometry_outbound(scene,start,goal,*,allowed_region_names,arm_q=None,spacing=.30,max_radius=.65,prune_contained=False,refinement_spacing=None,refinement_radius_threshold=None,extra_seeds=None):
     start=np.asarray(start,float);goal=np.asarray(goal,float)
     if abs(start[2]-goal[2])>1e-10:raise RuntimeError('Geometry outbound slice requires identical start/goal yaw')
     config=scene.config;spec=config['gcs_base_planning'];boxes=[r for r in spec['regions'] if r['name'] in allowed_region_names and r['yaw_bounds'][0]<=start[2]<=r['yaw_bounds'][1]]
@@ -113,7 +155,11 @@ def plan_geometry_outbound(scene,start,goal,*,allowed_region_names,arm_q=None,sp
     # query at that exact threshold to avoid materializing irrelevant pairs.
     margin=.0201
     oracle=SliceOracle(scene,arm,scene.gripper_open_positions,yaw=float(start[2]),max_distance=float(max_radius)+margin);begin=time.perf_counter()
-    regions,records=make_cover(oracle.query,boxes,start[:2],goal[:2],np.array(config['robot']['lower_limits'][:2]),np.array(config['robot']['upper_limits'][:2]),spacing=spacing,margin=margin,max_radius=max_radius)
+    regions,records=make_cover(oracle.query,boxes,start[:2],goal[:2],np.array(config['robot']['lower_limits'][:2]),np.array(config['robot']['upper_limits'][:2]),spacing=spacing,margin=margin,max_radius=max_radius,refinement_spacing=refinement_spacing,refinement_radius_threshold=refinement_radius_threshold,extra_seeds=extra_seeds)
+    raw_region_count=len(regions)
+    if prune_contained:
+        regions,records=prune_contained_disks(regions,records)
+    print(f'Navigation cover: {raw_region_count} raw, {len(regions)} retained regions',flush=True)
     sources=[i for i,r in enumerate(regions) if r.PointInSet(start[:2],1e-9)];targets=[i for i,r in enumerate(regions) if r.PointInSet(goal[:2],1e-9)]
     if not sources or not targets:raise RuntimeError('Current-geometry outbound cover does not cover start or goal')
     # Geometric intersection pruning precedes official GCS optimization.
@@ -140,7 +186,7 @@ def plan_geometry_outbound(scene,start,goal,*,allowed_region_names,arm_q=None,sp
     distances=[oracle.query(x) for x in xy];minimum=min(d[0] for d in distances)
     if minimum<.02-1e-6 or min(d[1] for d in distances)<-1e-7:raise RuntimeError('Current-geometry outbound trajectory failed independent numerical audit')
     qs=np.column_stack([xy,np.full(len(xy),start[2])]);plan=GcsBasePlan(qs,elapsed,duration,float(np.linalg.norm(np.diff(xy,axis=0),axis=1).sum()),0.,float(result.get_optimal_cost()),result.get_solver_id().name(),trajectory.get_number_of_segments(),_label_region_sequence(qs,boxes))
-    return plan,{'algorithm':'Drake GcsTrajectoryOptimization on current-geometry disks intersected with allowed lane boxes','fixed_arm_q':arm.tolist(),'fixed_yaw':float(start[2]),'region_count':len(regions),'spacing':float(spacing),'margin_m':.0201,'prepare_seconds':prepared,'solve_seconds':elapsed,'audit_samples':len(xy),'minimum_distance_m':minimum,'oracle_calls':oracle.calls,'scope':'Fixed-posture translation slice, original semantic lanes retained; failure does not prove whole-body infeasibility.'}
+    return plan,{'algorithm':'Drake GcsTrajectoryOptimization on current-geometry disks intersected with allowed lane boxes','fixed_arm_q':arm.tolist(),'fixed_yaw':float(start[2]),'region_count':len(regions),'raw_region_count':raw_region_count,'prune_contained':bool(prune_contained),'refinement_spacing':refinement_spacing,'refinement_radius_threshold':refinement_radius_threshold,'spacing':float(spacing),'margin_m':.0201,'prepare_seconds':prepared,'solve_seconds':elapsed,'audit_samples':len(xy),'minimum_distance_m':minimum,'oracle_calls':oracle.calls,'scope':'Fixed-posture translation slice, original semantic lanes retained; failure does not prove whole-body infeasibility.'}
 
 
 def _se2_yaw_slices(boxes,start_yaw,goal_yaw,yaw_step,yaw_window):
@@ -153,15 +199,15 @@ def _se2_yaw_slices(boxes,start_yaw,goal_yaw,yaw_step,yaw_window):
     return sorted(slices)
 
 
-def plan_geometry_outbound_se2(scene,start,goal,*,allowed_region_names,yaw_step=.6,spacing=.35,yaw_window=.9,margin=.0201,arm_q=None):
+def plan_geometry_outbound_se2(scene,start,goal,*,allowed_region_names,yaw_step=.6,spacing=.35,yaw_window=.9,margin=.0201,arm_q=None,prune_contained=False,cover_artifact=None):
     """SE(2) current-geometry outbound navigation.
 
     Extends the fixed-yaw translation slice by slicing yaw so the base may
     rotate in place (or while translating) to route around obstacles such as a
     relocated cart. Each region is the Cartesian product of a current-geometry
     XY disk (clipped to its semantic lane box) and a yaw interval. The disk
-    radius is sized from the minimum signed distance probed across that yaw
-    interval, so the region is conservative for in-lane rotation. A finite
+    radius is sized from signed distance at the central yaw, not the entire
+    interval; safety of the entire product under rotation is unproven. A finite
     sample audit at each waypoint's actual yaw remains the gate; this is not a
     continuous-time safety certificate.
     """
@@ -208,6 +254,13 @@ def plan_geometry_outbound_se2(scene,start,goal,*,allowed_region_names,yaw_step=
                 yaw_set=HPolyhedron.MakeBox(np.array([y_lo]),np.array([y_hi]))
                 regions.append(CartesianProduct([xy_set,yaw_set]))
                 records.append({'center':xy.tolist(),'radius':radius,'lower':lo.tolist(),'upper':hi.tolist(),'label':box['name'],'yaw_lo':float(y_lo),'yaw_hi':float(y_hi),'slice':float(psi)})
+    raw_region_count=len(regions)
+    if prune_contained:
+        regions,records=prune_contained_disks(regions,records)
+    if cover_artifact is not None:
+        import json
+        from pathlib import Path
+        Path(cover_artifact).write_text(json.dumps({'raw_region_count':raw_region_count,'region_count':len(regions),'regions':records,'start':start.tolist(),'goal':goal.tolist()},indent=2))
     t_cover=time.perf_counter()
     sources=[i for i,r in enumerate(regions) if r.PointInSet(start,1e-9)];targets=[i for i,r in enumerate(regions) if r.PointInSet(goal,1e-9)]
     if not sources or not targets:raise RuntimeError('SE(2) outbound cover does not cover start or goal')
@@ -241,4 +294,4 @@ def plan_geometry_outbound_se2(scene,start,goal,*,allowed_region_names,yaw_step=
     minimum=min(distances)
     if minimum<.02-1e-6 or min(self_dists)<-1e-7:raise RuntimeError('SE(2) outbound trajectory failed independent numerical audit')
     plan=GcsBasePlan(qs,elapsed,duration,float(np.linalg.norm(np.diff(qs[:,:2],axis=0),axis=1).sum()),float(np.abs(np.diff(qs[:,2])).sum()),float(result.get_optimal_cost()),result.get_solver_id().name(),trajectory.get_number_of_segments(),_label_region_sequence(qs,boxes))
-    return plan,{'algorithm':'Drake GcsTrajectoryOptimization on SE(2) current-geometry disks (XY x yaw interval) intersected with allowed lane boxes','fixed_arm_q':arm.tolist(),'yaw_slices':slices,'region_count':len(regions),'spacing':spacing,'yaw_step':yaw_step,'margin_m':margin,'prepare_seconds':prepared,'solve_seconds':elapsed,'cover_seconds':t_cover-begin,'edge_seconds':t_edges-t_cover,'audit_samples':len(qs),'minimum_distance_m':minimum,'oracle_calls':oracle.calls,'scope':'SE(2) fixed-arm-posture cover; disks sized over their yaw interval; finite sample audit, not continuous certification. Failure does not prove whole-body infeasibility.'}
+    return plan,{'algorithm':'Drake GcsTrajectoryOptimization on SE(2) current-geometry disks (XY x yaw interval) intersected with allowed lane boxes','fixed_arm_q':arm.tolist(),'yaw_slices':slices,'region_count':len(regions),'raw_region_count':raw_region_count,'prune_contained':prune_contained,'spacing':spacing,'yaw_step':yaw_step,'margin_m':margin,'prepare_seconds':prepared,'solve_seconds':elapsed,'cover_seconds':t_cover-begin,'edge_seconds':t_edges-t_cover,'audit_samples':len(qs),'minimum_distance_m':minimum,'oracle_calls':oracle.calls,'scope':'SE(2) fixed-arm-posture candidate cover; disks sized at central yaw, not certified over the yaw interval; finite trajectory audit required. Failure does not prove whole-body infeasibility.'}

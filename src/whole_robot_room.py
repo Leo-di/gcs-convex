@@ -65,6 +65,7 @@ class WholeRobotRoomOracle:
     def query_current(self):
         """Read the current plant state without changing a dynamic simulation."""
         values = []
+        base_values, moving_values = [], []
         for body, shape, X_BG, name in self.geometry:
             pose = self.scene.plant.EvalBodyPoseInWorld(self.scene.plant_context, body) @ X_BG
             rotation = pose.rotation().matrix()
@@ -72,9 +73,12 @@ class WholeRobotRoomOracle:
                 support = normal @ pose.translation() + shape_support(shape, rotation.T @ normal)
                 values.append({"body": body.name(), "geometry": name, "face": face,
                                "residual_m": float(offset - support - self.margin)})
+                (base_values if body.model_instance() == self.scene.base_instance else moving_values).append(values[-1]['residual_m'])
         worst = min(values, key=lambda item: item["residual_m"])
         return {"satisfied": worst["residual_m"] >= -1e-8,
                 "residual_m": worst["residual_m"], "worst": worst,
+                "base_residual_m": min(base_values),
+                "arm_gripper_residual_m": min(moving_values),
                 "geometry_count": len(self.geometry), "margin_m": self.margin,
                 "scope": "All base/arm/gripper collision volumes; cup excluded; exact support at this configuration"}
 

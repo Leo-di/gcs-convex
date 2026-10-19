@@ -16,6 +16,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest"]
+benchmark = ["ompl==2.0.1"]
 
 [tool.setuptools.packages.find]
 where = ["."]

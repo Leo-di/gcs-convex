@@ -51,6 +51,7 @@ def solve_arm_ik(
     target_orientation: RotationMatrix | None = None,
     orientation_tolerance: float = 0.06,
     stage: str = "ik",
+    maximum_joint_step: float | None = None,
 ) -> np.ndarray:
     """Solve arm IK while the base, gripper, and cup remain fixed."""
 
@@ -90,6 +91,11 @@ def solve_arm_ik(
         program.AddBoundingBoxConstraint(np.asarray(limits["joint_lower_limits"]),
                                          np.asarray(limits["joint_upper_limits"]),
                                          q[arm_indices])
+    if maximum_joint_step is not None:
+        if not np.isfinite(maximum_joint_step) or maximum_joint_step <= 0:
+            raise ValueError('maximum_joint_step must be positive and finite')
+        program.AddBoundingBoxConstraint(np.asarray(initial_arm_q)-maximum_joint_step,
+                                         np.asarray(initial_arm_q)+maximum_joint_step, q[arm_indices])
 
     grasp_point = np.asarray(
         scene.config["gripper"]["grasp_point_in_body"],
@@ -133,6 +139,9 @@ def solve_arm_ik(
     rng = np.random.default_rng(1701)
     lower = scene.plant.GetPositionLowerLimits()[arm_indices]
     upper = scene.plant.GetPositionUpperLimits()[arm_indices]
+    if maximum_joint_step is not None:
+        lower = np.maximum(lower, np.asarray(initial_arm_q)-maximum_joint_step)
+        upper = np.minimum(upper, np.asarray(initial_arm_q)+maximum_joint_step)
     for _ in range(retry_count):
         if result.is_success():
             break
@@ -216,7 +225,8 @@ def plan_pick(scene: SceneHandles, base_q: np.ndarray) -> PickPlan:
 
 def cartesian_arm_path(scene: SceneHandles, base_q: np.ndarray,
                        start_q: np.ndarray, end_q: np.ndarray, count: int,
-                       *, stage: str) -> np.ndarray:
+                       *, stage: str, maximum_joint_step: float = .12,
+                       edge_validator=None, maximum_subdivisions: int = 12) -> np.ndarray:
     """Track a straight gripper translation and shortest rotation with IK.
 
     The start configuration and target end pose are preserved. The endpoint
@@ -232,15 +242,33 @@ def cartesian_arm_path(scene: SceneHandles, base_q: np.ndarray,
     point = np.asarray(scene.config["gripper"]["grasp_point_in_body"])
     positions = [pose.multiply(point) for pose in poses]
     rotations = [pose.rotation().ToQuaternion() for pose in poses]
+    if count < 2 or maximum_subdivisions < 0:
+        raise ValueError('Need at least two samples and a nonnegative subdivision limit')
     path = [np.asarray(start_q)]
-    for index, alpha in enumerate(np.linspace(0, 1, count)[1:], 1):
-        path.append(solve_arm_ik(
+    def advance(left, alpha, depth):
+        try:
+            candidate = solve_arm_ik(
             scene, base_q=base_q,
             target_position=(1-alpha)*positions[0] + alpha*positions[1],
             target_orientation=RotationMatrix(rotations[0].slerp(alpha, rotations[1])),
             initial_arm_q=path[-1], position_tolerance=0.0002,
             orientation_tolerance=0.005,
             minimum_clearance=float(scene.config["pick_task"]["minimum_clearance"]),
-            stage=f"{stage}_{index}",
-        ))
+            stage=f"{stage}_{alpha:.8f}", maximum_joint_step=maximum_joint_step,
+            )
+            valid = np.max(np.abs(candidate-path[-1])) <= maximum_joint_step+1e-7
+            if valid and edge_validator is not None:
+                valid = edge_validator(path[-1], candidate)
+            if valid:
+                path.append(candidate)
+                return
+        except IKSolveError:
+            pass
+        if depth >= maximum_subdivisions:
+            raise RuntimeError(f'{stage}: continuous IK refinement exhausted at [{left}, {alpha}]; no branch-jump fallback')
+        midpoint = (left+alpha)/2
+        advance(left, midpoint, depth+1)
+        advance(midpoint, alpha, depth+1)
+    for left, alpha in zip(np.linspace(0,1,count)[:-1], np.linspace(0,1,count)[1:]):
+        advance(float(left), float(alpha), 0)
     return np.asarray(path)

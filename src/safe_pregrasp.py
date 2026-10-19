@@ -6,7 +6,7 @@ from .grasp_audit import measure_cup_gripper,summarize_grasp_audit
 from .collision_checker import evaluate_collision_status
 
 
-def plan_pregrasp(scene,base,start,goal):
+def plan_pregrasp(scene,base,start,goal,*,state_constraint=None):
     began=time.perf_counter();rng=np.random.default_rng(1702)
     def valid(q):
         scene.plant.SetFreeBodyPose(scene.plant_context,scene.cup_body,scene.cup_initial_pose)
@@ -15,7 +15,7 @@ def plan_pregrasp(scene,base,start,goal):
         audit = measure_cup_gripper(scene)
         finger_clearance = all(pair['distance_m'] >= .002
             for pair in audit['pairs'] if pair['body'] in ('left_finger', 'right_finger'))
-        return collision.collision_free and finger_clearance and summarize_grasp_audit([{'attached':False,'cup_gripper_audit':audit}])['satisfied']
+        return collision.collision_free and finger_clearance and summarize_grasp_audit([{'attached':False,'cup_gripper_audit':audit}])['satisfied'] and (state_constraint is None or state_constraint(q))
     def edge(a,b):
         n=max(2,int(np.ceil(np.max(np.abs(b-a))/.025))+1)
         return all(valid((1-t)*a+t*b) for t in np.linspace(0,1,n))
