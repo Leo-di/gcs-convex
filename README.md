@@ -4,10 +4,20 @@ Research code for constructing spatially constrained IRIS regions and planning m
 
 ## Start here
 
+0. [Inside DSL → compiler → IRIS → GCS](docs/inside_compiler.md): runnable seven-joint comparison of conservative input domains and direct nonlinear semantic constraints, with measured results and actual region matrices.
 1. [Semantic constraints at the IRIS interface](docs/semantic_iris.md): the calculation, source-code reading order, and a runnable example.
 2. [Example input domains and IRIS matrices](docs/examples/semantic_iris_inspection.json).
 
-The central interface is:
+The Inside compiler now exposes two interfaces:
+
+```text
+Inside(robot, work_area) -> FK inequalities g(q) <= 0
+    A: conservative whole-box bound -> restricted IRIS domain
+    B: MathematicalProgram(g) -> IRIS additional nonlinear constraints
+    -> IRIS polyhedra -> intersection graph -> GCS -> independent checks
+```
+
+The earlier cafe/whole-task implementation uses conservative spatial domains:
 
 ```text
 structured spatial rule + scene + guide configurations
@@ -29,6 +39,15 @@ python -m pip install -e '.[dev]'
 ```
 
 ## Inspect the semantic-to-IRIS call
+
+For the complete new Inside comparison:
+
+```bash
+LCM_DEFAULT_URL=memq:// OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+python scripts/run_inside_iris_comparison.py --output outputs/inside_run
+```
+
+This is fixed-base arm reference planning. See the [compiler guide](docs/inside_compiler.md) for report/replay generation, reproduction settings, and limitations.
 
 This small example uses primitive scene geometry and Drake's bundled robot models. It needs no ReplicaCAD download.
 

@@ -1,0 +1,23 @@
+{
+  "region_index": 0,
+  "q": [
+    -0.38631201830855,
+    -0.24703853219952338,
+    0.008384519104463464,
+    -1.3577435786752112,
+    0.025853329445935887,
+    -0.050967406900776835,
+    -0.02350716987426692
+  ],
+  "g_max_m": 0.017009488629939007,
+  "constraint": {
+    "predicate": "keep_robot_inside",
+    "body": "right_finger",
+    "geometry": "mobile::Schunk_Gripper::collision",
+    "face": 3
+  },
+  "physical_collision_free": true,
+  "nominal_domain_contains": true,
+  "final_iris_polytope_contains": false,
+  "maximum_polytope_residual": 0.0334180327939837
+}

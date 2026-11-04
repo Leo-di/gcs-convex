@@ -1,0 +1,14 @@
+{
+  "full_suite": {
+    "passed": 556,
+    "skipped": 1,
+    "seconds": 37.6
+  },
+  "staged_snapshot_compiler_tests": {
+    "passed": 6
+  },
+  "comparison_run": "inside_compiler_20261104_v4",
+  "both_methods_passed": true,
+  "proposals_tracked": false,
+  "scope": "Finite region and reference samples; no contact execution or continuous safety guarantee"
+}

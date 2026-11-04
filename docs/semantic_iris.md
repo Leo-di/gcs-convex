@@ -1,6 +1,8 @@
 # Semantic constraints at the IRIS interface
 
-The semantic check runs before IRIS. It produces a bounded configuration-space domain. Drake's IRIS-NP2 receives that domain and a geometric collision checker, then returns a polyhedron inside the domain.
+For the new typed `Inside` DSL and **both conservative-domain and direct-nonlinear interfaces**, start with [Inside: one predicate, two IRIS interfaces](inside_compiler.md). The description below covers the earlier cafe and room-domain implementation.
+
+In that implementation, the semantic check runs before IRIS. It produces a bounded configuration-space domain. Drake's IRIS-NP2 receives that domain and a geometric collision checker, then returns a polyhedron inside the domain.
 
 ## Reading order
 

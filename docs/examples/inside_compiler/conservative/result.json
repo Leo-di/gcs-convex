@@ -1,0 +1,144 @@
+{
+  "method": "conservative",
+  "input_sha256": "75979739c284e50ac6e568a473708c3a8d96ffcc756c43d4db876111c4364ed0",
+  "satisfied": true,
+  "regions": 24,
+  "directed_edges": 46,
+  "iris_calls": 24,
+  "rejected_iris_regions": 0,
+  "native_iris_seconds": 3.630464335088618,
+  "region_audit_seconds": 2.1949352510273457,
+  "prepare_seconds": 6.651164542068727,
+  "gcs_seconds": 0.029095208970829844,
+  "total_seconds": 7.410193375078961,
+  "domain_bound_calls": 880,
+  "path_length_rad": 1.0816743196280758,
+  "path_audit": {
+    "satisfied": true,
+    "samples": 1009,
+    "maximum_g_m": -0.01790370473852798,
+    "independent_maximum_g_m": -0.017903704738528,
+    "counterexamples": []
+  },
+  "straight_line_control": {
+    "satisfied": false,
+    "samples": 335,
+    "maximum_g_m": 0.016152664230487446,
+    "independent_maximum_g_m": 0.01615266423048743,
+    "counterexamples": [
+      {
+        "index": 38,
+        "g_max_m": 5.5882402028473166e-05,
+        "collision_free": true,
+        "q": [
+          -0.38622754491017963,
+          -0.3,
+          0.0,
+          -1.4,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 39,
+        "g_max_m": 0.00044027204829166777,
+        "collision_free": true,
+        "q": [
+          -0.38323353293413176,
+          -0.3,
+          0.0,
+          -1.4,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 40,
+        "g_max_m": 0.0008200860563931656,
+        "collision_free": true,
+        "q": [
+          -0.38023952095808383,
+          -0.3,
+          0.0,
+          -1.4,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 41,
+        "g_max_m": 0.001195321021641771,
+        "collision_free": true,
+        "q": [
+          -0.3772455089820359,
+          -0.3,
+          0.0,
+          -1.4,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 42,
+        "g_max_m": 0.0015659735803938979,
+        "collision_free": true,
+        "q": [
+          -0.37425149700598803,
+          -0.3,
+          0.0,
+          -1.4,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 43,
+        "g_max_m": 0.0019320404100819921,
+        "collision_free": true,
+        "q": [
+          -0.3712574850299401,
+          -0.3,
+          0.0,
+          -1.4,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 44,
+        "g_max_m": 0.002293518229246949,
+        "collision_free": true,
+        "q": [
+          -0.3682634730538922,
+          -0.3,
+          0.0,
+          -1.4,
+          0.0,
+          0.0,
+          0.0
+        ]
+      },
+      {
+        "index": 45,
+        "g_max_m": 0.0026504037975638717,
+        "collision_free": true,
+        "q": [
+          -0.3652694610778443,
+          -0.3,
+          0.0,
+          -1.4,
+          0.0,
+          0.0,
+          0.0
+        ]
+      }
+    ]
+  },
+  "scope": "One diagnostic scene; independently sampled region/path checks; no continuous-time or global-optimality claim"
+}

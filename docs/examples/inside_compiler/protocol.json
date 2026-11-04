@@ -1,0 +1,169 @@
+{
+  "problem": {
+    "scene": "configs/scene_doorway_table.yaml",
+    "base_q": [
+      1.4,
+      -0.8,
+      0.0
+    ],
+    "start_arm_q": [
+      -0.5,
+      -0.3,
+      0.0,
+      -1.4,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "goal_arm_q": [
+      0.5,
+      -0.3,
+      0.0,
+      -1.4,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "guide_intervals": 8,
+    "guide_shoulder_retraction_rad": 0.2,
+    "padding_rad": 0.06,
+    "dsl": {
+      "version": 1,
+      "regions": {
+        "work_area": {
+          "type": "box",
+          "frame": "world",
+          "lower": [
+            0.1,
+            -1.4,
+            -0.1
+          ],
+          "upper": [
+            2.13,
+            1.4,
+            2.5
+          ]
+        }
+      },
+      "predicates": [
+        {
+          "id": "keep_robot_inside",
+          "op": "Inside",
+          "entity": "robot",
+          "region": "work_area",
+          "margin_m": 0.02
+        }
+      ]
+    }
+  },
+  "guide": [
+    [
+      -0.5,
+      -0.3,
+      0.0,
+      -1.4,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      -0.375,
+      -0.37653668647301797,
+      0.0,
+      -1.4,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      -0.25,
+      -0.4414213562373095,
+      0.0,
+      -1.4,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      -0.125,
+      -0.4847759065022573,
+      0.0,
+      -1.4,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      -0.5,
+      0.0,
+      -1.4,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.125,
+      -0.4847759065022573,
+      0.0,
+      -1.4,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.25,
+      -0.4414213562373095,
+      0.0,
+      -1.4,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.375,
+      -0.37653668647301797,
+      0.0,
+      -1.4,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.5,
+      -0.3,
+      0.0,
+      -1.4,
+      0.0,
+      0.0,
+      0.0
+    ]
+  ],
+  "seed": 20261104,
+  "particles": 200,
+  "iris_iterations": 3,
+  "separating_iterations": 30,
+  "configuration_space_margin_rad": 1e-05,
+  "holdout_samples_per_region": 128,
+  "holdout_mixing_steps": 20,
+  "gcs": {
+    "order": 1,
+    "velocity_rad_s": 0.5,
+    "length_weight": 1.0,
+    "time_weight": 0.05,
+    "rounded_paths": 5,
+    "solver": "Clarabel",
+    "max_iter": 500,
+    "tolerance": 1e-06,
+    "normalization": "q = origin + scale * u; scale = guide range + 0.12 rad"
+  },
+  "drake_version": "1.57.0",
+  "source_sha256": {
+    "src/semantic_dsl.py": "2ced1fedcb85890c08ef410d7b6595ae3d30fb3019ad4f1e4ab66d6928ddb8a6",
+    "src/semantic_compiler.py": "4a74a7e25516c659d26a6828faffb215a369274a61934743f45c13d3dac1c7d7",
+    "src/inside_iris_comparison.py": "800f447cdc36b894447cabca740af8a81a90407ca3b6637599ed18bc16f7d8e5",
+    "configs/scene_doorway_table.yaml": "09afede93aca7fb196069f66c3faff8b219e0353b281baf5e26c04a00ac92d99"
+  },
+  "scope": "Fixed-base seven-joint reference planning; no contact execution or task-order comparison",
+  "input_sha256": "75979739c284e50ac6e568a473708c3a8d96ffcc756c43d4db876111c4364ed0"
+}

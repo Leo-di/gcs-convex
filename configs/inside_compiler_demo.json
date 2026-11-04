@@ -1,0 +1,23 @@
+{
+  "scene": "configs/scene_doorway_table.yaml",
+  "base_q": [1.4, -0.8, 0.0],
+  "start_arm_q": [-0.5, -0.3, 0.0, -1.4, 0.0, 0.0, 0.0],
+  "goal_arm_q": [0.5, -0.3, 0.0, -1.4, 0.0, 0.0, 0.0],
+  "guide_intervals": 8,
+  "guide_shoulder_retraction_rad": 0.2,
+  "padding_rad": 0.06,
+  "dsl": {
+    "version": 1,
+    "regions": {
+      "work_area": {
+        "type": "box",
+        "frame": "world",
+        "lower": [0.1, -1.4, -0.1],
+        "upper": [2.13, 1.4, 2.5]
+      }
+    },
+    "predicates": [
+      {"id": "keep_robot_inside", "op": "Inside", "entity": "robot", "region": "work_area", "margin_m": 0.02}
+    ]
+  }
+}

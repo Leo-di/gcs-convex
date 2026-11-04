@@ -1,0 +1,1872 @@
+{
+  "dimension": 7,
+  "sign_convention": "g(q) <= 0",
+  "fixed_base_q": [
+    1.4,
+    -0.8,
+    0.0
+  ],
+  "fixed_gripper_q": [
+    -0.055,
+    0.055
+  ],
+  "constraints": [
+    {
+      "predicate": "keep_robot_inside",
+      "body": "mobile_base",
+      "geometry": "mobile_base_model::mobile_base_collision",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "mobile_base",
+      "geometry": "mobile_base_model::mobile_base_collision",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "mobile_base",
+      "geometry": "mobile_base_model::mobile_base_collision",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "mobile_base",
+      "geometry": "mobile_base_model::mobile_base_collision",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "mobile_base",
+      "geometry": "mobile_base_model::mobile_base_collision",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "mobile_base",
+      "geometry": "mobile_base_model::mobile_base_collision",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_0",
+      "geometry": "mobile::iiwa7::iiwa_link_0_collision",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_0",
+      "geometry": "mobile::iiwa7::iiwa_link_0_collision",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_0",
+      "geometry": "mobile::iiwa7::iiwa_link_0_collision",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_0",
+      "geometry": "mobile::iiwa7::iiwa_link_0_collision",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_0",
+      "geometry": "mobile::iiwa7::iiwa_link_0_collision",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_0",
+      "geometry": "mobile::iiwa7::iiwa_link_0_collision",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_1",
+      "geometry": "mobile::iiwa7::iiwa_link_1_collision",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_1",
+      "geometry": "mobile::iiwa7::iiwa_link_1_collision",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_1",
+      "geometry": "mobile::iiwa7::iiwa_link_1_collision",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_1",
+      "geometry": "mobile::iiwa7::iiwa_link_1_collision",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_1",
+      "geometry": "mobile::iiwa7::iiwa_link_1_collision",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_1",
+      "geometry": "mobile::iiwa7::iiwa_link_1_collision",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_2",
+      "geometry": "mobile::iiwa7::iiwa_link_2_collision",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_2",
+      "geometry": "mobile::iiwa7::iiwa_link_2_collision",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_2",
+      "geometry": "mobile::iiwa7::iiwa_link_2_collision",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_2",
+      "geometry": "mobile::iiwa7::iiwa_link_2_collision",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_2",
+      "geometry": "mobile::iiwa7::iiwa_link_2_collision",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_2",
+      "geometry": "mobile::iiwa7::iiwa_link_2_collision",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_3",
+      "geometry": "mobile::iiwa7::iiwa_link_3_collision",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_3",
+      "geometry": "mobile::iiwa7::iiwa_link_3_collision",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_3",
+      "geometry": "mobile::iiwa7::iiwa_link_3_collision",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_3",
+      "geometry": "mobile::iiwa7::iiwa_link_3_collision",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_3",
+      "geometry": "mobile::iiwa7::iiwa_link_3_collision",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_3",
+      "geometry": "mobile::iiwa7::iiwa_link_3_collision",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_4",
+      "geometry": "mobile::iiwa7::iiwa_link_4_collision",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_4",
+      "geometry": "mobile::iiwa7::iiwa_link_4_collision",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_4",
+      "geometry": "mobile::iiwa7::iiwa_link_4_collision",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_4",
+      "geometry": "mobile::iiwa7::iiwa_link_4_collision",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_4",
+      "geometry": "mobile::iiwa7::iiwa_link_4_collision",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_4",
+      "geometry": "mobile::iiwa7::iiwa_link_4_collision",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_5",
+      "geometry": "mobile::iiwa7::iiwa_link_5_collision",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_5",
+      "geometry": "mobile::iiwa7::iiwa_link_5_collision",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_5",
+      "geometry": "mobile::iiwa7::iiwa_link_5_collision",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_5",
+      "geometry": "mobile::iiwa7::iiwa_link_5_collision",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_5",
+      "geometry": "mobile::iiwa7::iiwa_link_5_collision",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_5",
+      "geometry": "mobile::iiwa7::iiwa_link_5_collision",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_6",
+      "geometry": "mobile::iiwa7::iiwa_link_6_collision",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_6",
+      "geometry": "mobile::iiwa7::iiwa_link_6_collision",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_6",
+      "geometry": "mobile::iiwa7::iiwa_link_6_collision",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_6",
+      "geometry": "mobile::iiwa7::iiwa_link_6_collision",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_6",
+      "geometry": "mobile::iiwa7::iiwa_link_6_collision",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_6",
+      "geometry": "mobile::iiwa7::iiwa_link_6_collision",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_7",
+      "geometry": "mobile::iiwa7::iiwa_link_7_collision",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_7",
+      "geometry": "mobile::iiwa7::iiwa_link_7_collision",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_7",
+      "geometry": "mobile::iiwa7::iiwa_link_7_collision",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_7",
+      "geometry": "mobile::iiwa7::iiwa_link_7_collision",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_7",
+      "geometry": "mobile::iiwa7::iiwa_link_7_collision",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "iiwa_link_7",
+      "geometry": "mobile::iiwa7::iiwa_link_7_collision",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "body",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "body",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "body",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "body",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "body",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "body",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_top",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_top",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_top",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_top",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_top",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_top",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_bottom",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_bottom",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_bottom",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_bottom",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_bottom",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_bottom",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_left",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_left",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_left",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_left",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_left",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_left",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_right",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_right",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_right",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_right",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_right",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::left_right",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "left_finger",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_top",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_top",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_top",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_top",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_top",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_top",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_bottom",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_bottom",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_bottom",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_bottom",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_bottom",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_bottom",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_left",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_left",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_left",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_left",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_left",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_left",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_right",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_right",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_right",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_right",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_right",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::right_right",
+      "face": 5
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 0
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 1
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 2
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 3
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 4
+    },
+    {
+      "predicate": "keep_robot_inside",
+      "body": "right_finger",
+      "geometry": "mobile::Schunk_Gripper::collision",
+      "face": 5
+    }
+  ],
+  "regions": {
+    "work_area": {
+      "normals": [
+        [
+          -1.0,
+          -0.0,
+          -0.0
+        ],
+        [
+          -0.0,
+          -1.0,
+          -0.0
+        ],
+        [
+          -0.0,
+          -0.0,
+          -1.0
+        ],
+        [
+          1.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          1.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "offsets_m": [
+        -0.1,
+        1.4,
+        0.1,
+        2.13,
+        1.4,
+        2.5
+      ]
+    }
+  },
+  "predicates": [
+    {
+      "id": "keep_robot_inside",
+      "entity": "robot",
+      "region": "work_area",
+      "margin_m": 0.02
+    }
+  ],
+  "formula": "g = n @ t_WG(q) + support(shape, R_WG(q).T @ n) + margin - b",
+  "native_interface": "sampled_iris_options.prog_with_additional_constraints",
+  "per_joint_displacement_bounds": [
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.3032626930917794,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.3032626930917794,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.3032626930917794,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.3032626930917794,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.3032626930917794,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.3032626930917794,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.41333678164115273,
+      0.23033678164115273,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.41333678164115273,
+      0.23033678164115273,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.41333678164115273,
+      0.23033678164115273,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.41333678164115273,
+      0.23033678164115273,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.41333678164115273,
+      0.23033678164115273,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.41333678164115273,
+      0.23033678164115273,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.6649405073154303,
+      0.4819405073154303,
+      0.2979405073154302,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.6649405073154303,
+      0.4819405073154303,
+      0.2979405073154302,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.6649405073154303,
+      0.4819405073154303,
+      0.2979405073154302,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.6649405073154303,
+      0.4819405073154303,
+      0.2979405073154302,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.6649405073154303,
+      0.4819405073154303,
+      0.2979405073154302,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.6649405073154303,
+      0.4819405073154303,
+      0.2979405073154302,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.8148169503441769,
+      0.6318169503441768,
+      0.4478169503441767,
+      0.23231695034417663,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.8148169503441769,
+      0.6318169503441768,
+      0.4478169503441767,
+      0.23231695034417663,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.8148169503441769,
+      0.6318169503441768,
+      0.4478169503441767,
+      0.23231695034417663,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.8148169503441769,
+      0.6318169503441768,
+      0.4478169503441767,
+      0.23231695034417663,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.8148169503441769,
+      0.6318169503441768,
+      0.4478169503441767,
+      0.23231695034417663,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.8148169503441769,
+      0.6318169503441768,
+      0.4478169503441767,
+      0.23231695034417663,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      1.045557266748439,
+      0.8625572667484389,
+      0.6785572667484387,
+      0.46305726674843867,
+      0.2790572667484381,
+      0.0,
+      0.0
+    ],
+    [
+      1.045557266748439,
+      0.8625572667484389,
+      0.6785572667484387,
+      0.46305726674843867,
+      0.2790572667484381,
+      0.0,
+      0.0
+    ],
+    [
+      1.045557266748439,
+      0.8625572667484389,
+      0.6785572667484387,
+      0.46305726674843867,
+      0.2790572667484381,
+      0.0,
+      0.0
+    ],
+    [
+      1.045557266748439,
+      0.8625572667484389,
+      0.6785572667484387,
+      0.46305726674843867,
+      0.2790572667484381,
+      0.0,
+      0.0
+    ],
+    [
+      1.045557266748439,
+      0.8625572667484389,
+      0.6785572667484387,
+      0.46305726674843867,
+      0.2790572667484381,
+      0.0,
+      0.0
+    ],
+    [
+      1.045557266748439,
+      0.8625572667484389,
+      0.6785572667484387,
+      0.46305726674843867,
+      0.2790572667484381,
+      0.0,
+      0.0
+    ],
+    [
+      1.1122494420391127,
+      0.9292494420391127,
+      0.7452494420391126,
+      0.5297494420391126,
+      0.34574944203911206,
+      0.130249442039112,
+      0.0
+    ],
+    [
+      1.1122494420391127,
+      0.9292494420391127,
+      0.7452494420391126,
+      0.5297494420391126,
+      0.34574944203911206,
+      0.130249442039112,
+      0.0
+    ],
+    [
+      1.1122494420391127,
+      0.9292494420391127,
+      0.7452494420391126,
+      0.5297494420391126,
+      0.34574944203911206,
+      0.130249442039112,
+      0.0
+    ],
+    [
+      1.1122494420391127,
+      0.9292494420391127,
+      0.7452494420391126,
+      0.5297494420391126,
+      0.34574944203911206,
+      0.130249442039112,
+      0.0
+    ],
+    [
+      1.1122494420391127,
+      0.9292494420391127,
+      0.7452494420391126,
+      0.5297494420391126,
+      0.34574944203911206,
+      0.130249442039112,
+      0.0
+    ],
+    [
+      1.1122494420391127,
+      0.9292494420391127,
+      0.7452494420391126,
+      0.5297494420391126,
+      0.34574944203911206,
+      0.130249442039112,
+      0.0
+    ],
+    [
+      1.161311574992316,
+      0.978311574992316,
+      0.7943115749923159,
+      0.5788115749923158,
+      0.39481157499231534,
+      0.1793115749923153,
+      0.0988115749923151
+    ],
+    [
+      1.161311574992316,
+      0.978311574992316,
+      0.7943115749923159,
+      0.5788115749923158,
+      0.39481157499231534,
+      0.1793115749923153,
+      0.0988115749923151
+    ],
+    [
+      1.161311574992316,
+      0.978311574992316,
+      0.7943115749923159,
+      0.5788115749923158,
+      0.39481157499231534,
+      0.1793115749923153,
+      0.0988115749923151
+    ],
+    [
+      1.161311574992316,
+      0.978311574992316,
+      0.7943115749923159,
+      0.5788115749923158,
+      0.39481157499231534,
+      0.1793115749923153,
+      0.0988115749923151
+    ],
+    [
+      1.161311574992316,
+      0.978311574992316,
+      0.7943115749923159,
+      0.5788115749923158,
+      0.39481157499231534,
+      0.1793115749923153,
+      0.0988115749923151
+    ],
+    [
+      1.161311574992316,
+      0.978311574992316,
+      0.7943115749923159,
+      0.5788115749923158,
+      0.39481157499231534,
+      0.1793115749923153,
+      0.0988115749923151
+    ],
+    [
+      1.2617529325008832,
+      1.078752932500883,
+      0.8947529325008831,
+      0.679252932500883,
+      0.49525293250088254,
+      0.2797529325008825,
+      0.19925293250088233
+    ],
+    [
+      1.2617529325008832,
+      1.078752932500883,
+      0.8947529325008831,
+      0.679252932500883,
+      0.49525293250088254,
+      0.2797529325008825,
+      0.19925293250088233
+    ],
+    [
+      1.2617529325008832,
+      1.078752932500883,
+      0.8947529325008831,
+      0.679252932500883,
+      0.49525293250088254,
+      0.2797529325008825,
+      0.19925293250088233
+    ],
+    [
+      1.2617529325008832,
+      1.078752932500883,
+      0.8947529325008831,
+      0.679252932500883,
+      0.49525293250088254,
+      0.2797529325008825,
+      0.19925293250088233
+    ],
+    [
+      1.2617529325008832,
+      1.078752932500883,
+      0.8947529325008831,
+      0.679252932500883,
+      0.49525293250088254,
+      0.2797529325008825,
+      0.19925293250088233
+    ],
+    [
+      1.2617529325008832,
+      1.078752932500883,
+      0.8947529325008831,
+      0.679252932500883,
+      0.49525293250088254,
+      0.2797529325008825,
+      0.19925293250088233
+    ],
+    [
+      1.3329577786496225,
+      1.1499577786496225,
+      0.9659577786496223,
+      0.7504577786496223,
+      0.5664577786496218,
+      0.3509577786496217,
+      0.2704577786496215
+    ],
+    [
+      1.3329577786496225,
+      1.1499577786496225,
+      0.9659577786496223,
+      0.7504577786496223,
+      0.5664577786496218,
+      0.3509577786496217,
+      0.2704577786496215
+    ],
+    [
+      1.3329577786496225,
+      1.1499577786496225,
+      0.9659577786496223,
+      0.7504577786496223,
+      0.5664577786496218,
+      0.3509577786496217,
+      0.2704577786496215
+    ],
+    [
+      1.3329577786496225,
+      1.1499577786496225,
+      0.9659577786496223,
+      0.7504577786496223,
+      0.5664577786496218,
+      0.3509577786496217,
+      0.2704577786496215
+    ],
+    [
+      1.3329577786496225,
+      1.1499577786496225,
+      0.9659577786496223,
+      0.7504577786496223,
+      0.5664577786496218,
+      0.3509577786496217,
+      0.2704577786496215
+    ],
+    [
+      1.3329577786496225,
+      1.1499577786496225,
+      0.9659577786496223,
+      0.7504577786496223,
+      0.5664577786496218,
+      0.3509577786496217,
+      0.2704577786496215
+    ],
+    [
+      1.352258770743789,
+      1.169258770743789,
+      0.9852587707437888,
+      0.7697587707437887,
+      0.5857587707437882,
+      0.37025877074378827,
+      0.2897587707437881
+    ],
+    [
+      1.352258770743789,
+      1.169258770743789,
+      0.9852587707437888,
+      0.7697587707437887,
+      0.5857587707437882,
+      0.37025877074378827,
+      0.2897587707437881
+    ],
+    [
+      1.352258770743789,
+      1.169258770743789,
+      0.9852587707437888,
+      0.7697587707437887,
+      0.5857587707437882,
+      0.37025877074378827,
+      0.2897587707437881
+    ],
+    [
+      1.352258770743789,
+      1.169258770743789,
+      0.9852587707437888,
+      0.7697587707437887,
+      0.5857587707437882,
+      0.37025877074378827,
+      0.2897587707437881
+    ],
+    [
+      1.352258770743789,
+      1.169258770743789,
+      0.9852587707437888,
+      0.7697587707437887,
+      0.5857587707437882,
+      0.37025877074378827,
+      0.2897587707437881
+    ],
+    [
+      1.352258770743789,
+      1.169258770743789,
+      0.9852587707437888,
+      0.7697587707437887,
+      0.5857587707437882,
+      0.37025877074378827,
+      0.2897587707437881
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.3521118565672725,
+      1.1691118565672725,
+      0.9851118565672723,
+      0.7696118565672723,
+      0.5856118565672718,
+      0.3701118565672717,
+      0.2896118565672715
+    ],
+    [
+      1.3521118565672725,
+      1.1691118565672725,
+      0.9851118565672723,
+      0.7696118565672723,
+      0.5856118565672718,
+      0.3701118565672717,
+      0.2896118565672715
+    ],
+    [
+      1.3521118565672725,
+      1.1691118565672725,
+      0.9851118565672723,
+      0.7696118565672723,
+      0.5856118565672718,
+      0.3701118565672717,
+      0.2896118565672715
+    ],
+    [
+      1.3521118565672725,
+      1.1691118565672725,
+      0.9851118565672723,
+      0.7696118565672723,
+      0.5856118565672718,
+      0.3701118565672717,
+      0.2896118565672715
+    ],
+    [
+      1.3521118565672725,
+      1.1691118565672725,
+      0.9851118565672723,
+      0.7696118565672723,
+      0.5856118565672718,
+      0.3701118565672717,
+      0.2896118565672715
+    ],
+    [
+      1.3521118565672725,
+      1.1691118565672725,
+      0.9851118565672723,
+      0.7696118565672723,
+      0.5856118565672718,
+      0.3701118565672717,
+      0.2896118565672715
+    ],
+    [
+      1.3329577786496225,
+      1.1499577786496225,
+      0.9659577786496223,
+      0.7504577786496223,
+      0.5664577786496218,
+      0.3509577786496217,
+      0.2704577786496215
+    ],
+    [
+      1.3329577786496225,
+      1.1499577786496225,
+      0.9659577786496223,
+      0.7504577786496223,
+      0.5664577786496218,
+      0.3509577786496217,
+      0.2704577786496215
+    ],
+    [
+      1.3329577786496225,
+      1.1499577786496225,
+      0.9659577786496223,
+      0.7504577786496223,
+      0.5664577786496218,
+      0.3509577786496217,
+      0.2704577786496215
+    ],
+    [
+      1.3329577786496225,
+      1.1499577786496225,
+      0.9659577786496223,
+      0.7504577786496223,
+      0.5664577786496218,
+      0.3509577786496217,
+      0.2704577786496215
+    ],
+    [
+      1.3329577786496225,
+      1.1499577786496225,
+      0.9659577786496223,
+      0.7504577786496223,
+      0.5664577786496218,
+      0.3509577786496217,
+      0.2704577786496215
+    ],
+    [
+      1.3329577786496225,
+      1.1499577786496225,
+      0.9659577786496223,
+      0.7504577786496223,
+      0.5664577786496218,
+      0.3509577786496217,
+      0.2704577786496215
+    ],
+    [
+      1.352258770743789,
+      1.169258770743789,
+      0.9852587707437888,
+      0.7697587707437887,
+      0.5857587707437882,
+      0.37025877074378827,
+      0.2897587707437881
+    ],
+    [
+      1.352258770743789,
+      1.169258770743789,
+      0.9852587707437888,
+      0.7697587707437887,
+      0.5857587707437882,
+      0.37025877074378827,
+      0.2897587707437881
+    ],
+    [
+      1.352258770743789,
+      1.169258770743789,
+      0.9852587707437888,
+      0.7697587707437887,
+      0.5857587707437882,
+      0.37025877074378827,
+      0.2897587707437881
+    ],
+    [
+      1.352258770743789,
+      1.169258770743789,
+      0.9852587707437888,
+      0.7697587707437887,
+      0.5857587707437882,
+      0.37025877074378827,
+      0.2897587707437881
+    ],
+    [
+      1.352258770743789,
+      1.169258770743789,
+      0.9852587707437888,
+      0.7697587707437887,
+      0.5857587707437882,
+      0.37025877074378827,
+      0.2897587707437881
+    ],
+    [
+      1.352258770743789,
+      1.169258770743789,
+      0.9852587707437888,
+      0.7697587707437887,
+      0.5857587707437882,
+      0.37025877074378827,
+      0.2897587707437881
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.344026593257875,
+      1.161026593257875,
+      0.9770265932578748,
+      0.7615265932578748,
+      0.5775265932578743,
+      0.3620265932578743,
+      0.2815265932578741
+    ],
+    [
+      1.3521118565672725,
+      1.1691118565672725,
+      0.9851118565672723,
+      0.7696118565672723,
+      0.5856118565672718,
+      0.3701118565672717,
+      0.2896118565672715
+    ],
+    [
+      1.3521118565672725,
+      1.1691118565672725,
+      0.9851118565672723,
+      0.7696118565672723,
+      0.5856118565672718,
+      0.3701118565672717,
+      0.2896118565672715
+    ],
+    [
+      1.3521118565672725,
+      1.1691118565672725,
+      0.9851118565672723,
+      0.7696118565672723,
+      0.5856118565672718,
+      0.3701118565672717,
+      0.2896118565672715
+    ],
+    [
+      1.3521118565672725,
+      1.1691118565672725,
+      0.9851118565672723,
+      0.7696118565672723,
+      0.5856118565672718,
+      0.3701118565672717,
+      0.2896118565672715
+    ],
+    [
+      1.3521118565672725,
+      1.1691118565672725,
+      0.9851118565672723,
+      0.7696118565672723,
+      0.5856118565672718,
+      0.3701118565672717,
+      0.2896118565672715
+    ],
+    [
+      1.3521118565672725,
+      1.1691118565672725,
+      0.9851118565672723,
+      0.7696118565672723,
+      0.5856118565672718,
+      0.3701118565672717,
+      0.2896118565672715
+    ]
+  ],
+  "geometry": "Exact support functions for registered primitive collision shapes; payload excluded"
+}
