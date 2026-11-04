@@ -9,8 +9,8 @@ def policy_from_config(config):
     return value
 
 
-def accepts(policy, *, geometry, goals, motion):
+def accepts(policy, *, geometry, goals, motion, plan=True):
     if policy not in POLICIES:
         raise ValueError(f'Unknown semantic policy: {policy}')
-    return bool(geometry and (policy == 'geometry_only' or goals)
+    return bool(plan and geometry and (policy == 'geometry_only' or goals)
                 and (policy != 'full_motion' or motion))

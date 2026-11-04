@@ -1,0 +1,21 @@
+# Freeze all conditions before solving. Local deterministic development cohort.
+scene: configs/scene_doorway_table.yaml
+seed: 20261025
+parallel_workers: 2
+total_search_seconds: 480.0
+per_candidate_seconds: 180.0
+outer_timeout_slack_seconds: 45.0
+sampling:
+  xy_step_m: 0.05
+  base_yaw_candidates: [0.0, -0.15, 0.15]
+  grasp_rpy_candidates:
+    - [0.0, 0.0, 0.0]
+    - [0.0, 0.0, -0.15]
+    - [0.0, 0.0, 0.15]
+cases:
+  - {id: nominal, table_dx: 0.0, cup_dx: 0.0, cup_dy: 0.0, start_base: [-1.5, 0.0, 0.0]}
+  - {id: table_nearer, table_dx: -0.04, cup_dx: -0.04, cup_dy: 0.0, start_base: [-1.5, 0.0, 0.0]}
+  - {id: table_farther, table_dx: 0.12, cup_dx: 0.12, cup_dy: 0.0, start_base: [-1.5, 0.0, 0.0]}
+  - {id: cup_near_edge, table_dx: 0.0, cup_dx: -0.04, cup_dy: 0.0, start_base: [-1.5, 0.0, 0.0]}
+  - {id: cup_deeper, table_dx: 0.0, cup_dx: 0.0, cup_dy: 0.08, start_base: [-1.5, 0.0, 0.0]}
+  - {id: offset_start, table_dx: 0.0, cup_dx: 0.0, cup_dy: 0.0, start_base: [-1.5, -0.2, 0.15]}

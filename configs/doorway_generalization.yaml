@@ -1,0 +1,41 @@
+# Prospective synthetic holdout. No outcomes used for inclusion or tuning.
+scene: configs/scene_doorway_table.yaml
+scene_sampler_seed: 2026102507
+independent_scenes: 12
+planner_seeds: [31001, 73109]
+parallel_workers: 2
+total_search_seconds: 240.0
+per_candidate_seconds: 120.0
+outer_timeout_slack_seconds: 45.0
+sampling:
+  xy_step_m: 0.075
+  base_xy_bounds: [[-0.6, 1.4], [-0.55, 0.55]]
+  base_yaw_candidates: [0.0, -0.3, 0.3]
+  grasp_rpy_candidates: [[0.0, 0.0, 0.0], [0.0, 0.0, -0.15], [0.0, 0.0, 0.15]]
+distribution:
+  families: [near_upper, far_upper, near_lower]
+  family_probabilities: [0.3333333333333333, 0.3333333333333333, 0.3333333333333334]
+  door_half_width_m: [0.48, 0.78]
+  table_width_m: [0.60, 0.85]
+  table_depth_m: [0.60, 0.80]
+  near_table_left_edge_m: [0.07, 0.20]
+  far_table_left_edge_m: [0.45, 0.78]
+  table_abs_y_m: [0.68, 0.90]
+  cup_from_left_edge_m: [0.08, 0.20]
+  cup_from_front_edge_m: [0.08, 0.18]
+  start_x_m: [-2.0, -1.4]
+  start_y_m: [-0.3, 0.3]
+  start_yaw_rad: [-0.25, 0.25]
+  room1_pillar_probability: 0.5
+  pillar_x_m: [-1.0, -0.65]
+  pillar_y_m: [-0.50, 0.50]
+  pillar_size_m: [0.18, 0.18, 0.9]
+analysis:
+  primary: physical_completion_and_whole_body_20mm_compliance
+  failed_or_timed_out_condition_score: 0
+  independent_unit: scene
+  repeated_planner_runs_per_scene: 2
+  confidence_level: 0.95
+  bootstrap_samples: 10000
+  bootstrap_seed: 8025
+  tuning_after_first_solve: forbidden_for_this_cohort

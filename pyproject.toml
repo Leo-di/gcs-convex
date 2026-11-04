@@ -5,18 +5,20 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "semantic-gcs-drake"
 version = "0.1.0"
-description = "A minimal Drake scene for semantic motion planning with GCS."
-requires-python = ">=3.12"
+description = "Semantic region construction and mobile manipulation with Drake IRIS and GCS."
+requires-python = ">=3.12,<3.14"
 dependencies = [
-  "drake",
+  "drake==1.57.0",
   "numpy",
   "PyYAML",
   "scipy",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest"]
+dev = ["pytest", "matplotlib"]
 benchmark = ["ompl==2.0.1"]
+scene-assets = ["trimesh==5.2.0", "coacd==1.0.14", "networkx==3.7"]
+preview = ["playwright==1.64.1", "imageio==2.38.1", "imageio-ffmpeg==0.7.0"]
 
 [tool.setuptools.packages.find]
 where = ["."]

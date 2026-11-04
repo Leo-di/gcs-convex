@@ -1,0 +1,47 @@
+# Supplied semantic plan, finite SE(2) base / grasp pose search, free-cup execution.
+scene: configs/scene_semantic_choice_v6.yaml
+layout: narrow
+sampling:
+  base_xy_bounds: [[0.45, 0.65], [0.0, 0.15]]
+  xy_step_m: 0.05
+  base_yaw_candidates: [-0.15, 0.0, 0.15]
+  grasp_rpy_candidates: [[0.0, 0.0, 0.0], [0.0, 0.0, -0.2]]
+  grasp_position_offsets_m: [[0.0, 0.0, -0.004], [0.0, 0.0, 0.0], [0.0, 0.0, 0.004]]
+  preferred_standoff_m: 0.85
+  ranking: navigation_distance
+  standoff_bounds_m: [0.65, 1.02]
+total_search_seconds: 600.0
+per_candidate_seconds: 240.0
+semantic_plan:
+  version: 1
+  predicates:
+    inside:
+      kind: whole_robot_in_room
+      region: room2
+      margin_m: 0.02
+    tucked:
+      kind: configuration_equals
+      indices: [3, 4, 5, 6, 7, 8, 9]
+      target: tucked
+      tolerance: 0.000001
+      execution_tolerance: 0.12
+    docked:
+      kind: configuration_equals
+      indices: [0, 1, 2]
+      target: dock
+      tolerance: 0.000001
+      execution_tolerance: [0.01, 0.01, 0.01]
+  phases:
+    - id: navigate_to_pickup
+      invariants: [tucked]
+      exit: [inside]
+    - id: approach_cup
+      entry: [inside]
+      invariants: [inside, docked]
+      exit: [inside]
+    - id: close_gripper
+      invariants: [inside, docked]
+    - id: lift_cup
+      invariants: [inside, docked]
+    - id: whole_body_carry_to_dropoff  # Legacy executor phase name; stationary hold.
+      invariants: [inside, docked]

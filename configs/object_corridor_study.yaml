@@ -1,0 +1,10 @@
+# All cases fixed before the first paired run; failures/timeouts retained.
+task: configs/object_corridor_transport.yaml
+worker_timeout_s: 300.0
+cases:
+  - id: nominal
+    destination_delta_xyz: [0.0, 0.0, 0.0]
+  - id: forward_destination
+    destination_delta_xyz: [0.08, -0.04, 0.0]
+  - id: lateral_destination
+    destination_delta_xyz: [0.0, 0.04, 0.0]

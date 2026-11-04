@@ -20,6 +20,7 @@ class PickPlan:
     grasp_q: np.ndarray
     lift_q: np.ndarray
     grasp_target: np.ndarray
+    grasp_pose: dict | None = None
 
 
 class IKSolveError(RuntimeError):
@@ -136,7 +137,8 @@ def solve_arm_ik(
     # Reuse exactly the same constraints and objective across deterministic
     # initial guesses. A failed local solve is not an infeasibility proof.
     retry_count = int(scene.config.get("ik_solver", {}).get("max_restarts", 0))
-    rng = np.random.default_rng(1701)
+    from .planner_randomness import planning_seed
+    rng = np.random.default_rng(planning_seed(scene.config, "ik", 1701))
     lower = scene.plant.GetPositionLowerLimits()[arm_indices]
     upper = scene.plant.GetPositionUpperLimits()[arm_indices]
     if maximum_joint_step is not None:
@@ -176,9 +178,14 @@ def plan_pick(scene: SceneHandles, base_q: np.ndarray) -> PickPlan:
                    if "gripper_rpy" in task else None)
     orientation_tolerance = float(task.get("orientation_tolerance", 0.06))
 
-    pregrasp_target = cup_center + np.asarray(task["pregrasp_offset"], dtype=float)
-    grasp_target = cup_center + np.asarray(task["grasp_offset"], dtype=float)
-    lift_target = cup_center + np.asarray(task["lift_offset"], dtype=float)
+    # Offset is expressed in the current toy object's world-aligned frame.
+    # Apply the offset to the approach/grasp/lift targets; retain the cup pose.
+    offset = np.asarray(task.get('grasp_position_offset_m', [0., 0., 0.]), float)
+    if offset.shape != (3,) or not np.all(np.isfinite(offset)):
+        raise ValueError('Finite grasp position offset triple required')
+    pregrasp_target = cup_center + offset + np.asarray(task["pregrasp_offset"], dtype=float)
+    grasp_target = cup_center + offset + np.asarray(task["grasp_offset"], dtype=float)
+    lift_target = cup_center + offset + np.asarray(task["lift_offset"], dtype=float)
 
     pregrasp_q = solve_arm_ik(
         scene,
@@ -220,6 +227,12 @@ def plan_pick(scene: SceneHandles, base_q: np.ndarray) -> PickPlan:
         grasp_q=grasp_q,
         lift_q=lift_q,
         grasp_target=grasp_target,
+        grasp_pose={'position_world_m': grasp_target.tolist(),
+                    'rpy_world_rad': list(task['gripper_rpy']) if 'gripper_rpy' in task else None,
+                    'object_relative_offset_m': offset.tolist(),
+                    'position_tolerance_m': tolerance,
+                    'orientation_tolerance_rad': orientation_tolerance,
+                    'scope': 'Gripper grasp point; world-aligned object offsets; IK goal, not grasp success'},
     )
 
 

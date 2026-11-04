@@ -37,17 +37,22 @@ def main():
         if violations:
             results.append({'method':r['method'],'accepted':False,'reason':'strict pre-execution reach audit rejected','violations':len(violations)})
             continue
-        frames=[f for f in original if f['phase']=='navigate_to_pickup']
-        append_motion(frames,np.repeat(dock[None,:],len(path),axis=0),path,
-                      np.repeat(scene.gripper_open_positions[None,:],len(path),axis=0),'approach_cup')
-        tail=[f for f in original if f['phase'] not in ('navigate_to_pickup','approach_cup')]
-        assert np.max(abs(path[-1]-tail[0]['arm_q']))<1e-6
-        frames+=tail
+        if r['method'] == 'grounded_candidate':
+            # Execute the exact phase-accepted reference without rebuilding or
+            # adding duplicate reach knots after planning has completed.
+            frames = original
+        else:
+            frames=[f for f in original if f['phase']=='navigate_to_pickup']
+            append_motion(frames,np.repeat(dock[None,:],len(path),axis=0),path,
+                          np.repeat(scene.gripper_open_positions[None,:],len(path),axis=0),'approach_cup')
+            tail=[f for f in original if f['phase'] not in ('navigate_to_pickup','approach_cup')]
+            assert np.max(abs(path[-1]-tail[0]['arm_q']))<1e-6
+            frames+=tail
         set_robot_configuration(scene,dock,path[-1],scene.gripper_closed_positions)
         X_GC=scene.plant.EvalBodyPoseInWorld(scene.plant_context,scene.gripper_body).inverse()@scene.cup_initial_pose
         audit,trace=audit_reference(scene,frames,dock,tucked,X_GC)
         (out/'reference_audit.json').write_text(json.dumps(audit,indent=2));(out/'delivery_trace.json').write_text(json.dumps(frames))
-        if not accepts(policy,geometry=audit['geometry_satisfied'],goals=audit['goal_semantics_satisfied'],motion=audit['motion_semantics_satisfied']):
+        if not accepts(policy,geometry=audit['geometry_satisfied'],goals=audit['goal_semantics_satisfied'],motion=audit['motion_semantics_satisfied'],plan=audit['supplied_plan_satisfied']):
             results.append({'method':r['method'],'accepted':False,'reason':'reference audit failed'});continue
         physics,dyn_scene=execute(config,frames,time_step=.001,time_scale=2.,visualize=True,grip=True)
         oracle=room_oracle(dyn_scene);room=[];cup=[];base=[]
@@ -66,9 +71,12 @@ def main():
         endpoints=[f for j,f in enumerate(active) if j==0 or j==len(active)-1 or active[j-1]['phase']!=f['phase'] or active[min(j+1,len(active)-1)]['phase']!=f['phase']]
         checks['goal_semantics_satisfied']=all(oracle.query(np.r_[f['base_q'],f['arm_q']],f['gripper_q'])['satisfied'] for f in endpoints)
         checks['motion_semantics_satisfied']=bool(min(room)>=0 and min(cup)>=0)
-        checks['semantic_task_satisfied']=bool(audit['satisfied'] and checks['geometry_satisfied'] and checks['goal_semantics_satisfied'] and checks['motion_semantics_satisfied'])
+        from .semantic_plan import audit_cup_plan
+        checks['semantic_plan_audit']=audit_cup_plan(dyn_scene,physics['trace'],dock,tucked,execution=True)
+        checks['supplied_plan_satisfied']=(checks['semantic_plan_audit'] is None or checks['semantic_plan_audit']['satisfied'])
+        checks['semantic_task_satisfied']=bool(audit['satisfied'] and checks['geometry_satisfied'] and checks['goal_semantics_satisfied'] and checks['motion_semantics_satisfied'] and checks['supplied_plan_satisfied'])
         checks['semantic_policy']=policy
-        checks['accepted']=accepts(policy,geometry=checks['geometry_satisfied'],goals=checks['goal_semantics_satisfied'],motion=checks['motion_semantics_satisfied'])
+        checks['accepted']=accepts(policy,geometry=checks['geometry_satisfied'],goals=checks['goal_semantics_satisfied'],motion=checks['motion_semantics_satisfied'],plan=checks['supplied_plan_satisfied'])
         checks['method']=r['method'];results.append(checks)
         physics['generic_delivery_audit_applicable']=False
         physics['generic_delivery_satisfied']=physics.pop('satisfied')

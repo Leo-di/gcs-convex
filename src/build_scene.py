@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -31,7 +31,7 @@ from pydrake.multibody.tree import (
 from pydrake.planning import RobotDiagramBuilder
 from pydrake.visualization import AddDefaultVisualization
 
-from .scene_spec import load_scene_config
+from .scene_spec import load_scene_config, PROJECT_ROOT, support_names
 
 
 @dataclass
@@ -57,6 +57,8 @@ class SceneHandles:
     attached_cup_geometry_id: Any | None
     attached_cup_instance: Any | None
     config: dict[str, Any]
+    object_bodies: dict[str, Any] = field(default_factory=dict)
+    object_initial_poses: dict[str, Any] = field(default_factory=dict)
 
 
 def _spatial_inertia_for_box(size: np.ndarray, mass: float) -> SpatialInertia:
@@ -564,7 +566,7 @@ def _add_mobile_base(plant: Any, robot_spec: dict[str, Any]) -> tuple[Any, Any, 
         FixedOffsetFrame(
             "mobile_base_motion_plane",
             plant.world_frame(),
-            RigidTransform([0.0, 0.0, size[2] / 2.0]),
+            RigidTransform([0.0, 0.0, size[2] / 2.0 + robot_spec.get('floor_height_m', 0.)]),
         )
     )
     joint = plant.AddJoint(
@@ -645,31 +647,34 @@ def build_scene(
     for wall_spec in config["world"]["walls"]:
         _add_fixed_box(plant, color=wall_color, **wall_spec)
 
-    table_body = _add_detailed_table(
-        plant,
-        name="table",
-        **config["objects"]["table"],
-    )
-    _add_detailed_table(
-        plant,
-        name="dropoff_table",
-        **config["objects"]["dropoff_table"],
-    )
-    _add_open_bin(
-        plant,
-        name="dropoff_bin",
-        **config["objects"]["dropoff_bin"],
-    )
-    _add_storage_cabinet(
-        plant,
-        name="storage_cabinet",
-        **config["objects"]["storage_cabinet"],
-    )
-    _add_mobile_cart_fixture(
-        plant,
-        name="mobile_cart",
-        **config["objects"]["mobile_cart"],
-    )
+    asset_bodies = {}
+    if config.get('external_scene_manifest') or config.get('asset_fixtures'):
+        import json
+        from .replicacad import add_fixed_asset
+        entries = list(config.get('asset_fixtures', []))
+        if config.get('external_scene_manifest'):
+            manifest = json.loads((PROJECT_ROOT/config['external_scene_manifest']).read_text())
+            entries = manifest['entries'] + entries
+        for entry in entries:
+            name = config.get('asset_body_aliases', {}).get(entry['name'], entry['name'])
+            asset = entry.get('asset')
+            if asset is None:
+                asset = json.loads((PROJECT_ROOT/entry['asset_file']).read_text())
+            pose = entry.get('pose')
+            if pose is None:
+                pose = RigidTransform(RollPitchYaw(entry.get('rpy',[0,0,0])),entry['center']).GetAsMatrix4()
+            asset_bodies[name] = add_fixed_asset(plant,name,asset,pose)
+    for name in support_names(config):
+        if name not in asset_bodies:
+            spec = config.get('support_surfaces', {}).get(name, config['objects'].get(name))
+            if spec is None:
+                raise ValueError(f'Missing named support surface: {name}')
+            asset_bodies[name] = _add_detailed_table(plant,name=name,**spec)
+    table_body = asset_bodies[config.get('pickup_support_body','table')]
+    if config.get('legacy_fixtures',True):
+        _add_open_bin(plant,name='dropoff_bin',**config['objects']['dropoff_bin'])
+        _add_storage_cabinet(plant,name='storage_cabinet',**config['objects']['storage_cabinet'])
+        _add_mobile_cart_fixture(plant,name='mobile_cart',**config['objects']['mobile_cart'])
     for distractor_spec in config["objects"].get("distractors", []):
         _add_fixed_distractor(plant, distractor_spec)
 
@@ -682,6 +687,23 @@ def build_scene(
         **cup_spec,
     )
     cup_initial_pose = RigidTransform(cup_spec["center"])
+    active_id = config.get('active_object_id', 'cup')
+    object_bodies = {active_id: cup_body}
+    object_initial_poses = {active_id: cup_initial_pose}
+    for object_id, object_spec in config['objects'].get('additional_cups', {}).items():
+        if not isinstance(object_id, str) or not object_id or object_id in object_bodies:
+            raise ValueError('Distinct nonempty object IDs required')
+        body = _add_detailed_cup(plant, name=f'object_{object_id}', collision=True, **object_spec)
+        object_bodies[object_id] = body
+        object_initial_poses[object_id] = RigidTransform(object_spec['center'])
+    for object_id, matrix in config.get('object_initial_poses', {}).items():
+        if object_id not in object_bodies:
+            raise ValueError('Initial object pose references an unknown object')
+        matrix = np.asarray(matrix, float)
+        if matrix.shape != (4, 4) or not np.all(np.isfinite(matrix)):
+            raise ValueError('Finite 4x4 initial object transform required')
+        object_initial_poses[object_id] = RigidTransform(matrix)
+    cup_initial_pose = object_initial_poses[active_id]
 
     for region_name, region_spec in config["semantic_regions"].items():
         x_min, x_max = region_spec["x_bounds"]
@@ -826,6 +848,17 @@ def build_scene(
         GeometrySet(plant.GetCollisionGeometriesForBody(base_body)),
     )
     if dynamics_time_step is None:
+        # Each object may rest on a different support after a preceding task.
+        # This is planning-only; dynamics retains every physical contact.
+        for object_id, body in object_bodies.items():
+            for support_name in config.get('planning_object_supports', {}).get(object_id, []):
+                support_body = plant.GetBodyByName(support_name)
+                filters.ExcludeBetween(GeometrySet(plant.GetCollisionGeometriesForBody(support_body)),
+                                       GeometrySet(plant.GetCollisionGeometriesForBody(body)))
+        for object_id, body in object_bodies.items():
+            if object_id != active_id:
+                filters.ExcludeBetween(GeometrySet(plant.GetCollisionGeometriesForBody(table_body)),
+                                       GeometrySet(plant.GetCollisionGeometriesForBody(body)))
         filters.ExcludeBetween(
             GeometrySet(plant.GetCollisionGeometriesForBody(table_body)),
             GeometrySet(plant.GetCollisionGeometriesForBody(cup_body)),
@@ -851,7 +884,7 @@ def build_scene(
                 GeometrySet([attached_cup_geometry_id]),
                 # Drake's planning checker requires uniform body-pair filters.
                 # Finger boxes remain covered by the unfiltered path audit.
-                # Crucially, payload versus arm/base is no longer suppressed.
+                # Keep payload collisions with the arm and base enabled.
                 GeometrySet(gripper_geometry_ids if narrow_contact_filter else robot_geometry_ids),
             )
             .ExcludeBetween(
@@ -871,11 +904,13 @@ def build_scene(
             # single point. Unannotated pairs retain point-contact fallback.
             plant.set_contact_model(ContactModel.kHydroelasticWithFallback)
             inspector = scene_graph.model_inspector()
-            for name in ("cup", "table", "dropoff_table", "dropoff_bin", "floor"):
+            for name in (*[body.name() for body in object_bodies.values()], *support_names(config), "dropoff_bin", "floor"):
+                if not plant.HasBodyNamed(name):
+                    continue
                 body = plant.GetBodyByName(name)
                 for gid in plant.GetCollisionGeometriesForBody(body):
                     props = ProximityProperties(inspector.GetProximityProperties(gid))
-                    if name == "cup":
+                    if name in [b.name() for b in object_bodies.values()]:
                         AddCompliantHydroelasticProperties(0.01, 1e7, props)
                     else:
                         AddRigidHydroelasticProperties(0.01, props)
@@ -925,9 +960,14 @@ def build_scene(
         attached_cup_geometry_id=attached_cup_geometry_id,
         attached_cup_instance=attached_cup_instance,
         config=config,
+        object_bodies=object_bodies,
+        object_initial_poses=object_initial_poses,
     )
     set_robot_configuration(scene, config["robot"]["start"])
     plant.SetFreeBodyPose(plant_context, cup_body, cup_initial_pose)
+    for object_id, body in object_bodies.items():
+        if object_id != active_id:
+            plant.SetFreeBodyPose(plant_context, body, object_initial_poses[object_id])
     if visualize:
         visualization = config.get("visualization", {})
         camera = visualization.get("global_camera", {})
@@ -945,6 +985,43 @@ def build_scene(
                 Rgba(1.0, 0.62, 0.08, 0.16),
             )
             meshcat.SetTransform("/semantic/doorway_plane", RigidTransform([0.0, 0.0, 0.825]))
+        # Semantic exclusions are visualization overlays, separate from physical
+        # obstacles that would also forbid the robot arm from entering.
+        for i, zone in enumerate(config.get('robot_keep_clear_display', config.get('robot_keep_clear', []))):
+            from pydrake.geometry import Rgba
+            lo, hi = np.asarray(zone['lower_xyz']), np.asarray(zone['upper_xyz'])
+            path = f'/semantic/customer_keep_clear_{i}'
+            meshcat.SetObject(path, Box(*(hi-lo)), Rgba(.95, .64, .08, .18))
+            meshcat.SetTransform(path, RigidTransform((hi+lo)/2))
+        for i, zone in enumerate(config.get('object_exclusion_display', config.get('object_exclusions', []))):
+            from pydrake.geometry import Rgba
+            lo, hi = np.asarray(zone['lower_xyz']), np.asarray(zone['upper_xyz'])
+            path = f'/semantic/object_exclusion_{i}'
+            meshcat.SetObject(path, Box(*(hi-lo)), Rgba(.9, .18, .12, .25))
+            meshcat.SetTransform(path, RigidTransform((hi+lo)/2))
+        for i, zone in enumerate(config.get('conditional_permissions', [])):
+            from pydrake.geometry import Rgba
+            lo, hi = np.asarray(zone['lower_xyz']), np.asarray(zone['upper_xyz'])
+            path = f'/semantic/conditional_permission_{i}'
+            meshcat.SetObject(path, Box(*(hi-lo)), Rgba(.95, .64, .08, .30))
+            meshcat.SetTransform(path, RigidTransform((hi+lo)/2))
+        for i, sequence in enumerate(config.get('ordered_visits', [])):
+            from pydrake.geometry import Rgba
+            for j, region in enumerate(sequence['regions']):
+                lo, hi = np.asarray(region['lower_xyz']), np.asarray(region['upper_xyz'])
+                path = f'/semantic/ordered_{i}/{j+1}_{region["id"]}'
+                color = Rgba(.2, .85, .35, .32) if j == 0 else Rgba(.75, .25, .95, .32)
+                meshcat.SetObject(path, Box(*(hi-lo)), color)
+                meshcat.SetTransform(path, RigidTransform((hi+lo)/2))
+        for i, corridor in enumerate(config.get('object_corridor_display', config.get('object_corridors', []))):
+            from pydrake.geometry import Rgba
+            for j, cell in enumerate(corridor['cells']):
+                lo, hi = np.asarray(cell['lower_xyz']), np.asarray(cell['upper_xyz'])
+                path = f'/semantic/object_corridor_{i}/cell_{j}'
+                meshcat.SetObject(path, Box(*(hi-lo)), Rgba(.12, .55, .95, .13))
+                meshcat.SetTransform(path, RigidTransform((hi+lo)/2))
+        from .object_relative import initialize_relative_visuals
+        initialize_relative_visuals(scene)
         diagram.ForcedPublish(root_context)
     return scene
 

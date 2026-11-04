@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+from pydrake.math import RigidTransform
 from pydrake.systems.analysis import Simulator
 
 from .build_scene import build_scene, set_robot_configuration
@@ -15,10 +16,12 @@ from .task_semantics import cup_bin_residuals
 
 
 def execute(config, reference, *, time_step=.001, time_scale=3.0,
-            visualize=False, grip=True):
+            visualize=False, grip=True, observation_hook=None):
     if time_scale <= 0 or len(reference) < 2:
         raise ValueError("Need a positive time scale and at least two reference frames")
     scene = build_scene(config=config, visualize=visualize, dynamics_time_step=time_step)
+    if len(scene.object_bodies) > 1 and any(f.get('object_id') not in scene.object_bodies for f in reference):
+        raise ValueError('Multi-object references require a valid object_id on every frame')
     plant = scene.plant
     root, context = scene.root_context, scene.plant_context
     first = reference[0]
@@ -33,6 +36,14 @@ def execute(config, reference, *, time_step=.001, time_scale=3.0,
     control_dt = .01
     if visualize:
         scene.meshcat.StartRecording()
+    moving_visuals = {}
+    if visualize:
+        from pydrake.geometry import Box, Rgba
+        for name, predicate in config.get('grounding_semantic_plan', {}).get('predicates', {}).items():
+            if predicate['kind'] == 'moving_keep_clear':
+                moving_visuals[name] = predicate
+                scene.meshcat.SetObject('/dynamic_occupancy/'+name,
+                    Box(*predicate['size_xy_m'], 1.7), Rgba(1., .55, .1, .6))
     trace, unexpected = [], []
     initial_cup_z = float(scene.cup_initial_pose.translation()[2])
     doorway = config.get("doorway_semantics", {})
@@ -77,6 +88,10 @@ def execute(config, reference, *, time_step=.001, time_scale=3.0,
                                        [-500,-500,-200], [500,500,200])
         plant.get_applied_generalized_force_input_port().FixValue(context, forces)
         simulator.AdvanceTo(t)
+        for name, predicate in moving_visuals.items():
+            knots = np.asarray(predicate['keyframes'])
+            center = [float(np.interp(t, knots[:, 0], knots[:, i])) for i in (1, 2)]
+            scene.meshcat.SetTransform('/dynamic_occupancy/'+name, RigidTransform([*center, .85]), time_in_recording=t)
         # Safety and semantic predicates are evaluated at every 10 ms control
         # tick, separately from the 50 ms saved visualization trace.
         base_now = np.asarray(plant.GetPositions(context, scene.base_instance), dtype=float)
@@ -109,6 +124,21 @@ def execute(config, reference, *, time_step=.001, time_scale=3.0,
             contact_pairs.append((bodies, float(np.linalg.norm(contact.F_Ac_W().translational()))))
         for bodies, magnitude in contact_pairs:
             names = [body.name() for body in bodies]
+            # Explicit action metadata selects the stateful contact contract,
+            # even when this transport task contains only one object.
+            if a.get('object_id') is not None or len(scene.object_bodies) > 1:
+                active_id = a['object_id']
+                object_ids = [object_id for object_id, body in scene.object_bodies.items()
+                              if body.index() in [b.index() for b in bodies]]
+                if object_ids:
+                    for object_id in object_ids:
+                        other = next(body for body in bodies if body.index() != scene.object_bodies[object_id].index()).name()
+                        supports = config.get('execution_object_supports', {}).get(object_id, ['table'])
+                        allowed = (other in supports or (other in finger and object_id == active_id))
+                        if not allowed and magnitude > .1:
+                            unexpected.append({'time_s': t, 'bodies': names, 'force_N': magnitude,
+                                'object_id': object_id, 'rule': 'multiobject_unexpected_contact'})
+                    continue
             if "cup" in names:
                 other = names[1] if names[0] == "cup" else names[0]
                 if other in finger:
@@ -127,11 +157,33 @@ def execute(config, reference, *, time_step=.001, time_scale=3.0,
                 unexpected.append({"time_s": t, "bodies": names, "force_N": magnitude})
         for side in max_finger_force:
             max_finger_force[side] = max(max_finger_force[side], finger[side])
+        object_observations = {}
+        if len(scene.object_bodies) > 1 or observation_hook is not None:
+            for object_id, body in scene.object_bodies.items():
+                X_WC = plant.EvalBodyPoseInWorld(context, body)
+                forces_now = {'left_finger': 0., 'right_finger': 0., 'table': 0.,
+                              'dropoff_table': 0., 'dropoff_bin': 0.}
+                from .scene_spec import support_names
+                forces_now.update({name:0. for name in support_names(config)})
+                for bodies, magnitude in contact_pairs:
+                    if body.index() in [b.index() for b in bodies]:
+                        other = next(b for b in bodies if b.index() != body.index()).name()
+                        if other in forces_now:
+                            forces_now[other] += magnitude
+                relative = X_WG_now.inverse() @ X_WC
+                object_observations[object_id] = {'pose': X_WC.GetAsMatrix4().tolist(),
+                    'speed_m_s': float(np.linalg.norm(plant.EvalBodySpatialVelocityInWorld(context, body).translational())),
+                    'angular_speed_rad_s': float(np.linalg.norm(plant.EvalBodySpatialVelocityInWorld(context, body).rotational())),
+                    'contacts_N': forces_now, 'relative_translation_m': relative.translation().tolist()}
+        if observation_hook is not None:
+            observation_hook(scene, {'time_s': t, 'phase': a['phase'], 'object_id': a.get('object_id'),
+                'mode': a.get('mode'), 'objects': object_observations})
         if step % 5 == 0 or t == duration:
             cup = plant.EvalBodyPoseInWorld(context, scene.cup_body)
             gripper = plant.EvalBodyPoseInWorld(context, scene.gripper_body)
             relative = gripper.inverse() @ cup
             trace.append({"time_s": t, "reference_index": index, "phase": a["phase"],
+                          'object_id': a.get('object_id'), 'mode': a.get('mode'), 'objects': object_observations,
                           "base_q": plant.GetPositions(context, scene.base_instance).tolist(),
                           "arm_q": plant.GetPositions(context, scene.arm_instance).tolist(),
                           "gripper_q": plant.GetPositions(context, scene.gripper_instance).tolist(),

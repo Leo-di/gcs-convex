@@ -1,0 +1,10 @@
+worker_timeout_s: 300.0
+cases:
+  - id: feasible
+    task: configs/combined_object_semantics.yaml
+    methods: [room_only, room_corridor, room_exclusion, all_constraints]
+    html: true
+  - id: conflict
+    task: configs/combined_object_semantics_conflict.yaml
+    methods: [room_corridor, room_exclusion, all_constraints]
+    html: false

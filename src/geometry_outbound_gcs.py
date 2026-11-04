@@ -12,7 +12,9 @@ from .gcs_base_planner import GcsBasePlan,_label_region_sequence
 from .scene_slice_gcs import SliceOracle
 
 
-def make_cover(query,boxes,start,goal,lower,upper,spacing=.20,margin=.0201,max_radius=.65,refinement_spacing=None,refinement_radius_threshold=None,extra_seeds=None):
+def make_cover(query,boxes,start,goal,lower,upper,spacing=.20,margin=.0201,max_radius=.65,refinement_spacing=None,refinement_radius_threshold=None,extra_seeds=None,min_radius=.025):
+    if not np.isfinite(min_radius) or min_radius <= 0 or min_radius > max_radius:
+        raise ValueError('Cover minimum radius must be finite, positive and no larger than maximum radius')
     seeds=[np.asarray(start),np.asarray(goal)]
     for seed in (() if extra_seeds is None else extra_seeds):
         seed=np.asarray(seed,float)
@@ -44,7 +46,7 @@ def make_cover(query,boxes,start,goal,lower,upper,spacing=.20,margin=.0201,max_r
         distance,self_distance,_=query(xy)
         if self_distance < -1e-7:raise RuntimeError('Outbound fixed posture has self collision')
         radius=min(float(max_radius),float(distance)-margin)
-        if radius<.025:continue
+        if radius<min_radius:continue
         # Fine seeds only in narrow-clearance areas. All coarse seeds and both
         # endpoints remain; graph connectivity is checked explicitly below.
         if key not in coarse_keys and radius >= (spacing if refinement_radius_threshold is None else refinement_radius_threshold):
@@ -144,7 +146,35 @@ def select_navigation_arm(scene, base_positions):
     return scene.arm_home_positions
 
 
-def plan_geometry_outbound(scene,start,goal,*,allowed_region_names,arm_q=None,spacing=.30,max_radius=.65,prune_contained=False,refinement_spacing=None,refinement_radius_threshold=None,extra_seeds=None):
+def select_region_chain(records, edges, sources, targets):
+    """A real overlap chain, selected before GCS to bound a large solve.
+
+    This restricts searched coverage and does not preserve the full graph's
+    optimum. Geometry/intersections are unchanged, and no fictitious edges
+    or interpolated final trajectory are introduced.
+    """
+    import heapq
+    adjacency = {i: [] for i in range(len(records))}
+    for a, b in edges:
+        adjacency[a].append(b)
+    queue = [(0., i, [i]) for i in sources]
+    heapq.heapify(queue)
+    seen = set()
+    while queue:
+        cost, i, path = heapq.heappop(queue)
+        if i in seen:
+            continue
+        seen.add(i)
+        if i in targets:
+            return path
+        for j in adjacency[i]:
+            weight = .001+float(np.linalg.norm(np.asarray(records[i]['center'])-records[j]['center']))
+            if j not in seen:
+                heapq.heappush(queue, (cost+weight, j, path+[j]))
+    raise RuntimeError('No real overlap chain between source and target')
+
+
+def plan_geometry_outbound(scene,start,goal,*,allowed_region_names,arm_q=None,spacing=.30,max_radius=.65,prune_contained=False,refinement_spacing=None,refinement_radius_threshold=None,extra_seeds=None,region_chain_threshold=None):
     start=np.asarray(start,float);goal=np.asarray(goal,float)
     if abs(start[2]-goal[2])>1e-10:raise RuntimeError('Geometry outbound slice requires identical start/goal yaw')
     config=scene.config;spec=config['gcs_base_planning'];boxes=[r for r in spec['regions'] if r['name'] in allowed_region_names and r['yaw_bounds'][0]<=start[2]<=r['yaw_bounds'][1]]
@@ -177,6 +207,20 @@ def plan_geometry_outbound(scene,start,goal,*,allowed_region_names,arm_q=None,sp
         for j in adjacency[stack.pop()]:
             if j not in reached:reached.add(j);stack.append(j)
     if not reached.intersection(targets):raise RuntimeError('Current-geometry fixed-posture lane cover is disconnected; no whole-body infeasibility claim')
+    cover_region_count = len(regions)
+    selected_chain = None
+    if region_chain_threshold is not None:
+        if type(region_chain_threshold) is not int or region_chain_threshold < 1:
+            raise ValueError('Positive integer region chain threshold required')
+        if len(regions) > region_chain_threshold:
+            selected_chain = select_region_chain(records, edges, sources, targets)
+            remap = {old: new for new, old in enumerate(selected_chain)}
+            regions = [regions[i] for i in selected_chain]
+            records = [records[i] for i in selected_chain]
+            edges = [(remap[a], remap[b]) for a, b in edges if a in remap and b in remap]
+            sources = [remap[i] for i in sources if i in remap]
+            targets = [remap[i] for i in targets if i in remap]
+            print(f'Navigation GCS restricted to real overlap chain: {len(regions)}/{cover_region_count} regions',flush=True)
     planner=GcsTrajectoryOptimization(2);free=planner.AddRegions(regions,edges,order=1,h_min=.01,h_max=20,name='current_geometry_outbound')
     src=planner.AddRegions([Point(start[:2])],order=0,name='start');dst=planner.AddRegions([Point(goal[:2])],order=0,name='pickup')
     planner.AddEdges(src,free,edges_between_regions=[(0,i) for i in sources]);planner.AddEdges(free,dst,edges_between_regions=[(i,0) for i in targets]);planner.AddPathLengthCost(float(spec['path_length_weight']));planner.AddTimeCost(float(spec['time_weight']));speed=float(spec['maximum_speed']);planner.AddVelocityBounds(np.full(2,-speed),np.full(2,speed))
@@ -186,7 +230,7 @@ def plan_geometry_outbound(scene,start,goal,*,allowed_region_names,arm_q=None,sp
     distances=[oracle.query(x) for x in xy];minimum=min(d[0] for d in distances)
     if minimum<.02-1e-6 or min(d[1] for d in distances)<-1e-7:raise RuntimeError('Current-geometry outbound trajectory failed independent numerical audit')
     qs=np.column_stack([xy,np.full(len(xy),start[2])]);plan=GcsBasePlan(qs,elapsed,duration,float(np.linalg.norm(np.diff(xy,axis=0),axis=1).sum()),0.,float(result.get_optimal_cost()),result.get_solver_id().name(),trajectory.get_number_of_segments(),_label_region_sequence(qs,boxes))
-    return plan,{'algorithm':'Drake GcsTrajectoryOptimization on current-geometry disks intersected with allowed lane boxes','fixed_arm_q':arm.tolist(),'fixed_yaw':float(start[2]),'region_count':len(regions),'raw_region_count':raw_region_count,'prune_contained':bool(prune_contained),'refinement_spacing':refinement_spacing,'refinement_radius_threshold':refinement_radius_threshold,'spacing':float(spacing),'margin_m':.0201,'prepare_seconds':prepared,'solve_seconds':elapsed,'audit_samples':len(xy),'minimum_distance_m':minimum,'oracle_calls':oracle.calls,'scope':'Fixed-posture translation slice, original semantic lanes retained; failure does not prove whole-body infeasibility.'}
+    return plan,{'algorithm':'Drake GcsTrajectoryOptimization on current-geometry disks intersected with allowed lane boxes','fixed_arm_q':arm.tolist(),'fixed_yaw':float(start[2]),'region_count':len(regions),'cover_region_count':cover_region_count,'selected_region_chain':selected_chain,'raw_region_count':raw_region_count,'prune_contained':bool(prune_contained),'refinement_spacing':refinement_spacing,'refinement_radius_threshold':refinement_radius_threshold,'spacing':float(spacing),'margin_m':.0201,'prepare_seconds':prepared,'solve_seconds':elapsed,'audit_samples':len(xy),'minimum_distance_m':minimum,'oracle_calls':oracle.calls,'scope':'Fixed-posture translation slice, original semantic lanes retained; optional real-chain selection restricts coverage/optimality; failure does not prove whole-body infeasibility.'}
 
 
 def _se2_yaw_slices(boxes,start_yaw,goal_yaw,yaw_step,yaw_window):

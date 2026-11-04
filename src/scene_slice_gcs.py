@@ -20,6 +20,8 @@ class SliceOracle:
         self.max_distance = float(max_distance)
         self.robot = {scene.base_instance, scene.arm_instance, scene.gripper_instance}
         self.calls = 0
+        from .robot_keep_clear import RobotKeepClearEvaluator
+        self.keep_clear = RobotKeepClearEvaluator(scene)
 
     def query(self, xy):
         self.calls += 1
@@ -37,6 +39,10 @@ class SliceOracle:
                 closest = [b.name() for b in bodies]
             elif count == 2:
                 self_distance = min(self_distance, float(pair.distance))
+        reserved = self.keep_clear.current()
+        if reserved['minimum_residual_m'] is not None and reserved['minimum_residual_m'] < environment:
+            environment = reserved['minimum_residual_m']
+            closest = [reserved['worst']['body'], 'semantic_reserved_space:'+reserved['worst']['zone']]
         return environment, self_distance, closest
 
 

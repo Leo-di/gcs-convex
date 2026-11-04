@@ -17,7 +17,28 @@ outputs/dependencies/
 outputs/figures/*
 outputs/videos/*
 outputs/results/*
+outputs/reports/professor_refinement_*/
+outputs/reports/professor_grounding_*/
+outputs/reports/professor_extensions_*/
+outputs/reports/stateful_transport_*/
+outputs/reports/stateful_benchmark_*/
+outputs/reports/operation_path_*/
 
 !outputs/figures/.gitkeep
 !outputs/videos/.gitkeep
 !outputs/results/.gitkeep
+
+# Local authoring and generated experiment artifacts
+.codex-build/
+.codex-slides/
+.chart-data-*/
+outputs/*
+!outputs/figures/
+!outputs/videos/
+!outputs/results/
+!outputs/figures/.gitkeep
+!outputs/videos/.gitkeep
+!outputs/results/.gitkeep
+.env
+.env.*
+!.env.example

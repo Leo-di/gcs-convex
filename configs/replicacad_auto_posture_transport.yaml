@@ -1,0 +1,235 @@
+scene: configs/scene_replicacad_human_passage.yaml
+objects:
+  cup:
+  - 0.46
+  - 0.85
+  - 0.84
+  cup_b:
+  - 3.48
+  - -0.8
+  - 0.84
+  cup_c:
+  - 0.46
+  - 3.85
+  - 0.84
+source_table: table
+destination_table:
+  size:
+  - 1.2
+  - 0.8
+  - 0.75
+  center:
+  - 2.05
+  - 2.2
+  - 0.375
+  top_thickness: 0.08
+  leg_size: 0.07
+  color:
+  - 0.42
+  - 0.2
+  - 0.07
+  - 1.0
+  edge_color:
+  - 0.24
+  - 0.09
+  - 0.03
+  - 1.0
+start_base:
+- -0.8
+- 0.0
+- 0.0
+actions:
+- id: clear_table_1
+  primitive: pick_transport_place
+  object_id: cup
+  pickup_base:
+  - 0.45
+  - 0.0
+  - 0.0
+  source_support: table
+  destination_support: dropoff_table
+  placements:
+  - - 2.1
+    - 2.15
+    - 0.84
+  - - 1.8
+    - 2.15
+    - 0.84
+  pickup_candidates:
+  - base_q:
+    - 0.45
+    - 0.0
+    - 0.0
+    grasp_rpy: &id001
+    - 0.0
+    - 0.0
+    - -0.2
+- id: clear_table_2
+  primitive: pick_transport_place
+  object_id: cup_b
+  pickup_base:
+  - 3.45
+  - -1.65
+  - 0.0
+  source_support: customer_b
+  destination_support: dropoff_table
+  placements:
+  - - 2.1
+    - 2.15
+    - 0.84
+  pickup_candidates:
+  - base_q:
+    - 3.45
+    - -1.65
+    - 0.0
+    grasp_rpy: *id001
+- id: clear_table_3
+  primitive: pick_transport_place
+  object_id: cup_c
+  pickup_base:
+  - 0.45
+  - 3.0
+  - 0.0
+  source_support: customer_c
+  destination_support: dropoff_table
+  placements:
+  - - 2.4
+    - 2.15
+    - 0.84
+  pickup_candidates:
+  - base_q:
+    - 0.45
+    - 3.0
+    - 0.0
+    grasp_rpy: *id001
+grasp_rpy: *id001
+lift_offset:
+- 0.0
+- 0.0
+- 0.28
+time_scale: 3.0
+max_expansions: 32
+time_budget_s: 2400.0
+carry:
+  lower_xy:
+  - -1.0
+  - -2.2
+  upper_xy:
+  - 4.85
+  - 4.7
+  spacing_m: 0.12
+  margin_m: 0.005
+  max_radius_m: 0.35
+  connectivity_refinement_rounds: 1
+  min_radius_m: 0.005
+  refinement_spacing_m: 0.04
+  refinement_radius_threshold_m: 0.15
+robot_keep_clear: []
+object_exclusions: []
+placement_lookahead: true
+support_surfaces:
+  customer_b:
+    size:
+    - 1.2
+    - 0.8
+    - 0.75
+    center:
+    - 3.5
+    - -0.95
+    - 0.375
+    top_thickness: 0.08
+    leg_size: 0.07
+    color:
+    - 0.42
+    - 0.2
+    - 0.07
+    - 1.0
+    edge_color:
+    - 0.24
+    - 0.09
+    - 0.03
+    - 1.0
+  customer_c:
+    size:
+    - 1.2
+    - 0.8
+    - 0.75
+    center:
+    - 0.5
+    - 3.7
+    - 0.375
+    top_thickness: 0.08
+    leg_size: 0.07
+    color:
+    - 0.42
+    - 0.2
+    - 0.07
+    - 1.0
+    edge_color:
+    - 0.24
+    - 0.09
+    - 0.03
+    - 1.0
+  customer_d:
+    size:
+    - 1.2
+    - 0.8
+    - 0.75
+    center:
+    - 3.5
+    - 3.7
+    - 0.375
+    top_thickness: 0.08
+    leg_size: 0.07
+    color:
+    - 0.42
+    - 0.2
+    - 0.07
+    - 1.0
+    edge_color:
+    - 0.24
+    - 0.09
+    - 0.03
+    - 1.0
+operation_refinement:
+  max_rounds: 2
+  max_regions: 1024
+  time_budget_s: 300.0
+robot_keep_clear_display: []
+object_exclusion_display: []
+human_passage:
+  id: entrance_to_exit
+  lower_xy:
+  - -1.35
+  - -2.1
+  upper_xy:
+  - 5.2
+  - 0.25
+  start_xy:
+  - 0.0
+  - -0.75
+  goal_xy:
+  - 4.75
+  - -0.75
+  radius_m: 0.28
+  height_m: 1.7
+  margin_m: 0.02
+  resolution_m: 0.08
+  enforce: true
+transport_posture_search:
+  radial_fractions:
+  - 1.0
+  - 0.85
+  - 0.7
+  - 0.55
+  lateral_fractions:
+  - 0.0
+  - -0.15
+  - 0.15
+  height_offsets_m:
+  - 0.0
+  - 0.1
+  max_candidates: 10
+  max_full_plans: 4
+  time_budget_s: 600.0
+  screen_spacing_m: 0.12

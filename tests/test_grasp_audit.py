@@ -15,6 +15,18 @@ from src.scene_spec import load_scene_config
 from src.task_semantics import pick_guard_residuals
 
 
+def test_reach_through_door_requirements_are_scoped_to_explicit_task():
+    from src.animate_delivery_demo import doorway_task_satisfied
+    audit = dict.fromkeys(("base_clearance_satisfied", "base_always_room1",
+        "end_effector_entered_room2", "arm_crossed_door", "cup_initially_in_room2",
+        "cup_retracted_to_room1"), True)
+    assert doorway_task_satisfied({"doorway_semantics": {}}, audit)
+    for key in audit:
+        failed = dict(audit, **{key: False})
+        assert not doorway_task_satisfied({"doorway_semantics": {}}, failed)
+        assert doorway_task_satisfied({}, failed)
+
+
 def test_real_legacy_grasp_penetration_is_not_hidden_by_filters():
     scene = build_scene(visualize=False, config=load_scene_config(Path(__file__).parent / "fixtures/legacy_grasp.yaml"))
     pick = plan_pick(scene, np.array([1.2, -0.1, 0]))
@@ -126,6 +138,7 @@ def test_corrected_full_delivery_passes_unfiltered_geometry_and_semantics():
     assert result["grasp_audit"]["bilateral_contact_frames_checked"] > 100
     assert result["collision_free"]
     assert result["monitor_report"]["satisfied"]
+    assert not result["doorway_audit"]["required_by_task"]
     retreat = np.array([r["arm_q"] for r in result["trace"] if r["phase"] == "retreat_arm"])
     assert np.max(np.abs(np.diff(retreat, axis=0))) < 0.1
     assert not result["grasp_audit"]["physical_grasp_validated"]

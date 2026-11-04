@@ -1,0 +1,16 @@
+scene: configs/scene_semantic_choice_v6.yaml
+objects:
+  cup: [0.46, 0.85, 0.84]
+  cup_b: [0.68, 0.85, 0.84]
+actions:
+  - id: inspect_first_cup
+    primitive: pick_lift_replace
+    object_id: cup
+    base_candidates: [[0.45, 0.0, 0.0], [0.65, 0.0, 0.0]]
+  - id: inspect_second_cup
+    primitive: pick_lift_replace
+    object_id: cup_b
+    base_candidates: [[0.65, 0.0, 0.0], [0.85, 0.0, 0.0]]
+grasp_rpy: [0.0, 0.0, -0.2]
+time_scale: 2.0
+max_attempts: 4

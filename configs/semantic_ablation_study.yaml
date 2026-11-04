@@ -1,0 +1,19 @@
+# Freeze before any cohort run. Three local development perturbations per suite.
+policies: [geometry_only, goal_only, full_motion]
+candidate_seconds: 180.0
+arm_probe:
+  scene: configs/scene_semantic_choice_v6.yaml
+  base_x: [0.43, 0.45, 0.48]
+  start_arm_q: [-0.8, -0.53, 0.0, 0.0, 0.0, 0.0, 0.0]
+  goal_arm_q: [0.8, -0.53, 0.0, 0.0, 0.0, 0.0, 0.0]
+  audit_step_rad: 0.0025
+doorway:
+  scene: configs/scene_doorway_table.yaml
+  frozen_candidate:
+    id: fixed_dock
+    base_q: [0.5, 0.0, 0.0]
+    grasp_rpy: [0.0, 0.0, 0.0]
+  layouts:
+    - {id: nominal, table_dx: 0.0, cup_dx: 0.0, door_half_width: 0.60}
+    - {id: table_inward, table_dx: 0.04, cup_dx: 0.04, door_half_width: 0.60}
+    - {id: narrower_door, table_dx: 0.0, cup_dx: 0.0, door_half_width: 0.55}

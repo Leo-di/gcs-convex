@@ -1,6 +1,6 @@
 """Bounded candidate grounding around the existing staged Drake GCS planner.
 
-The scene is immutable. Only docking and grasp orientation are searched.
+The scene is immutable. Docking SE(2) and object-relative grasp poses are searched.
 Failure is scoped to this finite candidate set / planner budget, never a
 certificate of configuration-space infeasibility. No reference-path fallback.
 """
@@ -42,8 +42,12 @@ def generate_candidates(config):
     if yaws.ndim != 1 or not len(yaws) or not np.all(np.isfinite(yaws)) or len(np.unique(yaws)) != len(yaws):
         raise ValueError('Distinct finite base yaw candidates required')
     poses = []
+    offsets = np.asarray(spec.get('grasp_position_offsets_m', [[0., 0., 0.]]), float)
+    if (offsets.ndim != 2 or offsets.shape[1] != 3 or not len(offsets)
+            or not np.all(np.isfinite(offsets)) or len(np.unique(offsets, axis=0)) != len(offsets)):
+        raise ValueError('Distinct finite grasp position offset triples required')
     for x, y, yaw in itertools.product(*axes, yaws):
-        for rpy in spec['grasp_rpy_candidates']:
+        for rpy, offset in itertools.product(spec['grasp_rpy_candidates'], offsets):
             if np.asarray(rpy).shape != (3,) or not np.all(np.isfinite(rpy)):
                 raise ValueError('Finite grasp RPY triples required')
             score = abs(np.linalg.norm(np.array([x, y]) - cup) - spec['preferred_standoff_m'])
@@ -53,8 +57,9 @@ def generate_candidates(config):
             if spec.get('ranking', 'standoff') == 'navigation_distance':
                 score = float(np.linalg.norm(np.array([x,y]) - np.asarray(config['robot']['start'][:2])))
             poses.append({'base_q': [float(x), float(y), yaw], 'grasp_rpy': list(rpy),
+                          'grasp_position_offset_m': offset.tolist(),
                           'ranking_score': float(score)})
-    poses.sort(key=lambda p: (round(p['ranking_score'], 10), p['grasp_rpy'], p['base_q']))
+    poses.sort(key=lambda p: (round(p['ranking_score'], 10), p['grasp_rpy'], p['base_q'], p['grasp_position_offset_m']))
     for i, pose in enumerate(poses):
         pose['id'] = f'candidate_{i:03d}'
     return poses
@@ -64,6 +69,14 @@ def screen_candidates(config, candidates):
     scene = build_scene(config=config, visualize=False)
     oracle = room_oracle(scene)
     tucked = np.asarray(config['pick_task']['navigation_arm_q'])
+    # Explicit base-only plans can reject an invalid navigation endpoint
+    # before IK. This is the same predicate used in phase acceptance.
+    supplied = config.get('grounding_semantic_plan')
+    base_exit_refs = []
+    if supplied:
+        base_exit_refs = [ref for phase in supplied['phases'] if phase['id'] == 'navigate_to_pickup'
+                          for ref in phase.get('exit', [])
+                          if supplied['predicates'][ref]['kind'] == 'base_in_room']
     rows = []
     for candidate in candidates:
         base = candidate['base_q']
@@ -72,7 +85,17 @@ def screen_candidates(config, candidates):
                                               gripper_q=scene.gripper_open_positions)
         row = dict(candidate, dock_room_residual_m=inside['residual_m'],
                    dock_collision_distance_m=float(collision.minimum_signed_distance))
-        if policy_from_config(config) != 'geometry_only' and not inside['satisfied']:
+        base_exit_ok = True
+        if base_exit_refs:
+            from .semantic_plan import SemanticPlanEvaluator
+            evaluator = SemanticPlanEvaluator(scene, supplied, bindings={'dock': base, 'tucked': tucked})
+            checks = {ref: evaluator.evaluate(ref, np.r_[base, tucked, scene.gripper_open_positions])
+                      for ref in base_exit_refs}
+            row['base_exit_checks'] = checks
+            base_exit_ok = all(v['satisfied'] for v in checks.values())
+        if not base_exit_ok:
+            row.update(status='rejected', reason='base_goal_outside_room')
+        elif policy_from_config(config) != 'geometry_only' and not inside['satisfied']:
             row.update(status='rejected', reason='whole_robot_goal_outside_room')
         elif not collision.collision_free:
             row.update(status='rejected', reason='docking_collision')
@@ -87,6 +110,10 @@ def make_candidate_config(config, candidate):
     result['pick_task']['candidates'] = [{'name': candidate['id'], 'base_q': candidate['base_q']}]
     result['pick_task']['candidate_source'] = 'deterministic_workspace_lattice_then_full_robot_screen'
     result['pick_task']['gripper_rpy'] = candidate['grasp_rpy']
+    offset = np.asarray(candidate.get('grasp_position_offset_m', [0., 0., 0.]), float)
+    if offset.shape != (3,) or not np.all(np.isfinite(offset)):
+        raise ValueError('Finite object-relative grasp position offset required')
+    result['pick_task']['grasp_position_offset_m'] = offset.tolist()
     return result
 
 

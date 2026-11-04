@@ -274,6 +274,16 @@ def _verify_ordered_events(
     return next_event == len(sequence), witnesses
 
 
+def doorway_task_satisfied(config: dict, audit: dict) -> bool:
+    """Apply the stay-outside/reach-through task only when explicitly supplied."""
+    if "doorway_semantics" not in config:
+        return True
+    return all(audit[key] for key in (
+        "base_clearance_satisfied", "base_always_room1", "end_effector_entered_room2",
+        "arm_crossed_door", "cup_initially_in_room2", "cup_retracted_to_room1",
+    ))
+
+
 def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: dict) -> dict:
     """Plan and check one entire delivery without publishing its animation."""
     start_q = np.asarray(scene.config["robot"]["start"], dtype=float)
@@ -304,6 +314,17 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
     upper = np.array([*region["upper"], region["yaw_bounds"][1]])
     if np.any(pickup_q < lower) or np.any(pickup_q > upper):
         raise CandidateRejected("Pickup configuration is outside the product action region")
+    # Goal checks do not depend on an incoming navigation path. Reject an
+    # invalid grasp before spending time building that path.
+    attempt["stage"] = "pickup_ik"
+    pick_plan = plan_pick(scene, np.asarray(pickup_q))
+    set_robot_configuration(scene, pick_plan.base_q, pick_plan.grasp_q, scene.gripper_closed_positions)
+    scene.plant.SetFreeBodyPose(scene.plant_context, scene.cup_body, scene.cup_initial_pose)
+    endpoint_audit = summarize_grasp_audit([{"attached": True, "cup_gripper_audit": measure_cup_gripper(scene)}])
+    attempt["grasp_endpoint_audit"] = endpoint_audit
+    if scene.config.get("validation", {}).get("require_grasp_geometry", False) and not endpoint_audit["satisfied"]:
+        attempt["stage"] = "grasp_geometry"
+        raise CandidateRejected("Unfiltered grasp geometry failed", endpoint_audit)
     attempt["stage"] = "outbound_gcs"
     from .geometry_outbound_gcs import (
         plan_geometry_outbound,
@@ -340,6 +361,8 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
             scene, start_q, pickup_q, allowed_region_names=allowed_region_names,
             arm_q=navigation_arm,
             spacing=float(scene.config.get("pick_task", {}).get("outbound_disk_spacing_m", 0.30)),
+            prune_contained=bool(scene.config.get("pick_task", {}).get("outbound_prune_contained", True)),
+            region_chain_threshold=scene.config.get("pick_task", {}).get("outbound_region_chain_threshold", 128),
         )
     except RuntimeError:
         # The fixed-yaw translation slice is disconnected or has no path here
@@ -356,16 +379,6 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
     if not np.allclose(base_to_pick[-1], pickup_q, rtol=0., atol=1e-7):
         raise CandidateRejected("Outbound GCS endpoint differs from requested pickup")
     base_to_pick[-1] = np.asarray(pickup_q, dtype=float)
-    attempt["stage"] = "pickup_ik"
-    pick_plan = plan_pick(scene, base_to_pick[-1])
-    # The ordinary scene query filters cup/gripper pairs. Audit them explicitly.
-    set_robot_configuration(scene, pick_plan.base_q, pick_plan.grasp_q, scene.gripper_closed_positions)
-    scene.plant.SetFreeBodyPose(scene.plant_context, scene.cup_body, scene.cup_initial_pose)
-    endpoint_audit = summarize_grasp_audit([{"attached": True, "cup_gripper_audit": measure_cup_gripper(scene)}])
-    attempt["grasp_endpoint_audit"] = endpoint_audit
-    if scene.config.get("validation", {}).get("require_grasp_geometry", False) and not endpoint_audit["satisfied"]:
-        attempt["stage"] = "grasp_geometry"
-        raise CandidateRejected("Unfiltered grasp geometry failed", endpoint_audit)
     attempt["stage"] = "delivery_ik"
     delivery_plan = plan_delivery(scene, pick_plan)
     attempt["stage"] = "action_guards"
@@ -839,6 +852,7 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
     )
     wall_clearance_audit = summarize_wall_clearance(trace, required_wall_clearance)
     doorway_audit = {
+        "required_by_task": "doorway_semantics" in scene.config,
         "base_in_room2": any(row["base_in_room2"] for row in trace),
         "base_always_room1": all(row["base_in_room1"] for row in trace),
         "minimum_base_geometry_clearance_to_door_plane_m": min(base_plane_clearances),
@@ -852,6 +866,7 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
         "cup_retracted_to_room1": any(row["cup_retracted_to_room1"] for row in trace),
         "scope": "Kinematic GCS/IRIS path audit; physical contact is separately checked by execute_delivery_dynamics.",
     }
+    doorway_audit["task_satisfied"] = doorway_task_satisfied(scene.config, doorway_audit)
     if scene.config.get("validation", {}).get("require_grasp_geometry", False) and not grasp_audit["satisfied"]:
         violation = grasp_audit.get("first_violation")
         if violation is not None:
@@ -863,12 +878,7 @@ def plan_delivery_candidate(scene: SceneHandles, pickup_q: np.ndarray, attempt: 
         or not monitor_report["satisfied"]
         or not semantic_sequence_satisfied
         or bool(pickup_base_outside_violations)
-        or not doorway_audit["base_clearance_satisfied"]
-        or not doorway_audit["base_always_room1"]
-        or not doorway_audit["end_effector_entered_room2"]
-        or not doorway_audit["arm_crossed_door"]
-        or not doorway_audit["cup_initially_in_room2"]
-        or not doorway_audit["cup_retracted_to_room1"]
+        or not doorway_audit["task_satisfied"]
     ):
         raise CandidateRejected("Full delivery validation failed", {
             "collision_free": collision_free,

@@ -22,7 +22,13 @@ def contact_domain(scene, checker, mapping, start, end, lower, upper, reach):
     context=scene.scene_graph.GetMyContextFromRoot(scene.root_context)
     query=scene.scene_graph.get_query_output_port().Eval(context)
     pairs=query.ComputeSignedDistancePairwiseClosestPoints(.1)
-    clearance=min((p.distance for p in pairs),default=.1)
+    inspector=query.inspector()
+    moving={scene.base_instance,scene.arm_instance,scene.gripper_instance,scene.attached_cup_instance}
+    # Unchanged world objects may rest on other supports. Their tiny gaps do
+    # not bound an arm-motion domain and can numerically collapse its cap.
+    clearance=min((p.distance for p in pairs if any(
+        scene.plant.GetBodyFromFrameId(inspector.GetFrameId(g)).model_instance() in moving
+        for g in (p.id_A,p.id_B))),default=.1)
     if clearance <= 0 or not checker.CheckConfigCollisionFree(mapping(end)):
         raise RuntimeError('Contact-domain interior endpoint is not collision free')
     radius=min(float(clearance)/(4*reach*len(end)),.0002,
@@ -35,25 +41,46 @@ def contact_domain(scene, checker, mapping, start, end, lower, upper, reach):
     return domain,end,radius
 
 
-def support_boundary(scene, positions):
+def support_proximity(scene, positions):
+    """Return actual payload/source-support clearance without changing filters."""
     if scene.attached_cup_instance is None:
-        return False
+        return None
     scene.plant.SetPositions(scene.plant_context, positions)
     context=scene.scene_graph.GetMyContextFromRoot(scene.root_context)
     query=scene.scene_graph.get_query_output_port().Eval(context)
     cup=set(scene.plant.GetCollisionGeometriesForBody(scene.plant.GetBodyByName('attached_cup')))
-    table=set(scene.plant.GetCollisionGeometriesForBody(scene.plant.GetBodyByName('table')))
-    found=False
+    support_name=scene.config.get('pickup_support_body','table')
+    table=set(scene.plant.GetCollisionGeometriesForBody(scene.plant.GetBodyByName(support_name)))
+    gaps=[];other_penetration=False
     for pair in query.ComputeSignedDistancePairwiseClosestPoints(.001):
         support=((pair.id_A in cup and pair.id_B in table) or
                  (pair.id_B in cup and pair.id_A in table))
         if support:
-            if pair.distance < -SUPPORT_TOLERANCE_M:
-                return False
-            found |= abs(pair.distance) <= SUPPORT_TOLERANCE_M
+            gaps.append(float(pair.distance))
         elif pair.distance < 0:
-            return False
-    return found
+            other_penetration=True
+    return dict(support=support_name,distance_m=min(gaps,default=None),
+                other_penetration=other_penetration)
+
+
+def support_boundary(scene, positions):
+    state=support_proximity(scene,positions)
+    return bool(state is not None and state['distance_m'] is not None
+        and abs(state['distance_m'])<=SUPPORT_TOLERANCE_M and not state['other_penetration'])
+
+
+def near_support(scene,positions,activation_distance_m=1e-5):
+    """Select a tapered IRIS domain near contact, never accept penetration.
+
+    The positive activation distance only selects a smaller search domain.
+    Numerical contact closure retains its separate 1e-10 m tolerance.
+    """
+    if not np.isfinite(activation_distance_m) or activation_distance_m<0:
+        raise ValueError('Finite nonnegative near-support activation required')
+    state=support_proximity(scene,positions)
+    return bool(state is not None and state['distance_m'] is not None
+        and -SUPPORT_TOLERANCE_M<=state['distance_m']<=activation_distance_m
+        and not state['other_penetration'])
 
 
 def interior_witness(scene, checker, mapping, point, seed):

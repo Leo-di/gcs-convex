@@ -1,0 +1,29 @@
+scene: configs/scene_semantic_choice_v6.yaml
+base_q: [0.45, 0.0, 0.0]
+pieces:
+  - id: first_operation
+    start_arm_q: [-0.8, -0.53, 0, 0, 0, 0, 0]
+    goal_arm_q: [-0.7, -0.53, 0, 0, 0, 0, 0]
+  - id: second_operation
+    start_arm_q: [0.7, -0.53, 0, 0, 0, 0, 0]
+    goal_arm_q: [0.8, -0.53, 0, 0, 0, 0, 0]
+bridge_phase: connect_operations
+semantic_plan:
+  version: 1
+  predicates:
+    room2:
+      kind: whole_robot_in_room
+      region: room2
+      margin_m: 0.02
+    fixed_base:
+      kind: configuration_equals
+      indices: [0, 1, 2]
+      target: [0.45, 0.0, 0.0]
+      tolerance: 0.000001
+  phases:
+    - id: first_operation
+      invariants: [room2, fixed_base]
+    - id: connect_operations
+      invariants: [room2, fixed_base]
+    - id: second_operation
+      invariants: [room2, fixed_base]

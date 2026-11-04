@@ -62,7 +62,7 @@ def plan_bridge(scene,start,goal,arm,method,artifact,seed=20261019):
     except RuntimeError as e:
         category=classify_bridge_failure(str(e));save('fixed_gcs_failed',category=category,reason=str(e))
         if method=='fixed_gcs' or category not in ('coverage_disconnected','endpoint_not_covered'):raise
-    # Repair only a representation failure, never an invalid endpoint or audit.
+    # Retry cover construction only after endpoint and audit checks pass.
     def valid(s):
         xy=np.array([s[0],s[1]])
         if not any(np.all(xy>=b['lower']) and np.all(xy<=b['upper']) for b in boxes):return False

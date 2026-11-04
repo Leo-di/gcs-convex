@@ -76,3 +76,22 @@ def test_optional_yaw_search_preserves_xy_and_grasp_set(config):
 def test_invalid_yaw_search_rejected(config,angles):
     config['semantic_refinement']['base_yaw_candidates']=angles
     with pytest.raises(ValueError):generate_candidates(config)
+
+
+def test_full_grasp_pose_search_and_immutable_goal_config(config):
+    original = generate_candidates(config)
+    config['semantic_refinement']['grasp_position_offsets_m'] = [[0., 0., -.004], [0., 0., .004]]
+    config['semantic_refinement']['base_yaw_candidates'] = [-.15, .15]
+    expanded = generate_candidates(config)
+    assert len(expanded) == 4*len(original)
+    assert {c['grasp_position_offset_m'][2] for c in expanded} == {-.004, .004}
+    child = make_candidate_config(config, expanded[0])
+    assert child['pick_task']['grasp_position_offset_m'] == expanded[0]['grasp_position_offset_m']
+    assert child['objects'] == config['objects']
+
+
+@pytest.mark.parametrize('offsets', [[], [[0., 0.]], [[0., 0., float('nan')]], [[0., 0., 0.], [0., 0., 0.]]])
+def test_invalid_grasp_position_library_rejected(config, offsets):
+    config['semantic_refinement']['grasp_position_offsets_m'] = offsets
+    with pytest.raises(ValueError, match='grasp position'):
+        generate_candidates(config)

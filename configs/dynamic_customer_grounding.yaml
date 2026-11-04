@@ -1,0 +1,7 @@
+customer:
+  kind: moving_keep_clear
+  size_xy_m: [0.36, 0.36]
+  margin_m: 0.05
+  keyframes: [[0.0, -1.5, 0.0], [30.0, -1.5, 0.0], [32.0, -1.5, 2.0], [500.0, -1.5, 2.0]]
+candidate_delays_s: [0.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0]
+time_scale: 2.0

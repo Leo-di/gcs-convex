@@ -12,6 +12,11 @@ import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SCENE_CONFIG = PROJECT_ROOT / "configs" / "scene.yaml"
+
+
+def support_names(config):
+    """Named table supports, including the legacy scene defaults."""
+    return list(dict.fromkeys(['table', 'dropoff_table', *config.get('support_surfaces', {})]))
 CANDIDATE_LIBRARY_CONFIG = (
     PROJECT_ROOT
     / "outputs"

@@ -145,7 +145,7 @@ def measure_cup_gripper(scene) -> dict:
     # initial support. Check it explicitly so that lifting cannot tunnel
     # through that table under the support exception.
     bodies = [scene.plant.get_body(i) for i in scene.plant.GetBodyIndices(scene.gripper_instance)]
-    bodies.append(scene.plant.GetBodyByName("table"))
+    bodies.append(scene.plant.GetBodyByName(scene.config.get('pickup_support_body','table')))
     for cup_id in scene.plant.GetCollisionGeometriesForBody(scene.cup_body):
         for body in bodies:
             for gripper_id in scene.plant.GetCollisionGeometriesForBody(body):

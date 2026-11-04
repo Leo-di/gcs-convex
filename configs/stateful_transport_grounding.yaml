@@ -1,0 +1,36 @@
+scene: configs/scene_semantic_choice_v6.yaml
+objects:
+  cup: [0.46, 0.85, 0.84]
+  cup_b: [0.68, 0.85, 0.84]
+source_table: table
+destination_table:
+  center: [1.78, 0.70, 0.375]
+  size: [0.9, 0.8, 0.75]
+start_base: [0.45, 0.0, 0.0]
+actions:
+  - id: move_first_cup
+    primitive: pick_transport_place
+    object_id: cup
+    pickup_base: [0.45, 0.0, 0.0]
+    source_support: table
+    destination_support: dropoff_table
+    # Both are permitted for cup A; the first occupies B's later required slot.
+    placements: [[1.66, 0.85, 0.84], [1.42, 0.85, 0.84]]
+  - id: move_second_cup
+    primitive: pick_transport_place
+    object_id: cup_b
+    pickup_base: [0.65, 0.0, 0.0]
+    source_support: table
+    destination_support: dropoff_table
+    placements: [[1.66, 0.85, 0.84]]
+grasp_rpy: [0.0, 0.0, -0.2]
+lift_offset: [0.0, 0.0, 0.28]
+time_scale: 3.0
+max_expansions: 8
+time_budget_s: 600.0
+carry:
+  lower_xy: [0.35, -0.30]
+  upper_xy: [1.90, 0.12]
+  spacing_m: 0.02
+  margin_m: 0.005
+  max_radius_m: 0.18
