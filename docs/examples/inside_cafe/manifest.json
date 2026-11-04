@@ -1,0 +1,16 @@
+{
+  "input_files_sha256": {
+    "config.json": "f98a1be269b30fd0cdbd2448828d22025e894c2b34deb51b1987030a2e2a47fa",
+    "inside.json": "3ea662e243f8ab33734d1ee3e6a9bddd4b1a2dbc608cb52ece18419d188278ce",
+    "planning_config.json": "102081aac20189937d858256e6c49c8431a77f5e06ad7653187969bae4716377",
+    "protocol.json": "a122cb506ed36ad9496e1cabd0a817e3665f8697655bb88bd631a968d425ff8c",
+    "reference.json": "f02a454d604d1d787aa4c45a89c5bda8f73e0a8efdc79c725839fd80eca9bfe8",
+    "search.json": "d73fb38e1331710ff5df1d302f9a05d884dbbbe8f232f9fe53fe9d3cba3241cf"
+  },
+  "physics_sha256": {
+    "conservative": "40ecfcf9d4ffa239a42e8061e207874d643cf3e080760147ff47ba1ef1af20c1",
+    "nonlinear": "21bff4cf1c9f00db6b60168995440a51cbbc538585b5e8f836aec468b3f78680"
+  },
+  "parent_commit": "71e6d2545274757f70b37058a5988c9ef21258ea",
+  "scope": "Fresh full-task Inside comparison; large measured traces and Meshcat assets retained locally"
+}

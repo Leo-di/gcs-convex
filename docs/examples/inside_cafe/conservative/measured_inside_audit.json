@@ -1,0 +1,8 @@
+{
+  "satisfied": true,
+  "samples": 10479,
+  "robot_maximum_g_m": -0.006997684036397445,
+  "objects_maximum_g_m": -0.268324144955586,
+  "counterexamples": [],
+  "scope": "Every saved measured state; actual finger positions and actual free-body poses of all cups; no welded-payload shortcut"
+}

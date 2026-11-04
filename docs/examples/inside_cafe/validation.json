@@ -1,0 +1,19 @@
+{
+  "full_suite": {
+    "passed": 559,
+    "skipped": 1,
+    "seconds": 37.64
+  },
+  "both_complete_contact_runs_passed": true,
+  "inside_measured_states": [
+    10479,
+    10276
+  ],
+  "proposal_tracked": false,
+  "clean_staged_suite": {
+    "passed": 536,
+    "skipped": 24,
+    "seconds": 34.86
+  },
+  "frozen_source_hashes_match": true
+}

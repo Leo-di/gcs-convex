@@ -76,7 +76,7 @@ def parse(document):
                 "Supported primitive: Inside(id, entity, region, margin_m)"
             )
         if (
-            spec["entity"] not in ("robot", "arm", "gripper", "base")
+            spec["entity"] not in ("robot", "arm", "gripper", "base", "payload")
             or spec["region"] not in regions
         ):
             raise ValueError("Known entity and region required")

@@ -1,0 +1,68 @@
+{
+  "satisfied": true,
+  "modes": [
+    {
+      "mode": "clear_table_1_empty",
+      "dimension": 10,
+      "samples": 421,
+      "maximum_g_m": -0.08,
+      "satisfied": true,
+      "counterexamples": [],
+      "payload_predicate": false
+    },
+    {
+      "mode": "clear_table_1_held",
+      "dimension": 10,
+      "samples": 501,
+      "maximum_g_m": -0.08,
+      "satisfied": true,
+      "counterexamples": [],
+      "payload_predicate": true
+    },
+    {
+      "mode": "clear_table_2_empty",
+      "dimension": 10,
+      "samples": 1199,
+      "maximum_g_m": -0.030824580547639258,
+      "satisfied": true,
+      "counterexamples": [],
+      "payload_predicate": false
+    },
+    {
+      "mode": "clear_table_2_held",
+      "dimension": 10,
+      "samples": 730,
+      "maximum_g_m": -0.019903304166373204,
+      "satisfied": true,
+      "counterexamples": [],
+      "payload_predicate": true
+    },
+    {
+      "mode": "clear_table_3_empty",
+      "dimension": 10,
+      "samples": 891,
+      "maximum_g_m": -0.08,
+      "satisfied": true,
+      "counterexamples": [],
+      "payload_predicate": false
+    },
+    {
+      "mode": "clear_table_3_held",
+      "dimension": 10,
+      "samples": 471,
+      "maximum_g_m": -0.08,
+      "satisfied": true,
+      "counterexamples": [],
+      "payload_predicate": true
+    },
+    {
+      "mode": "final_retreat",
+      "dimension": 10,
+      "samples": 387,
+      "maximum_g_m": -0.08,
+      "satisfied": true,
+      "counterexamples": [],
+      "payload_predicate": false
+    }
+  ]
+}

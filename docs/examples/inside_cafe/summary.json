@@ -1,0 +1,142 @@
+[
+  {
+    "method": "conservative",
+    "dimension": 10,
+    "motion_modes": 7,
+    "variable_contacts": 6,
+    "solve_path_calls": 1,
+    "base_length_m": 21.00416680681009,
+    "arm_length_rad": 34.28007587951003,
+    "simultaneous_base_arm_segments": 19,
+    "simultaneous_thresholds": {
+      "base_translation_m": 0.001,
+      "arm_joint_norm_rad": 0.005
+    },
+    "base_distance_during_simultaneous_segments_m": 0.047880247312836056,
+    "maximum_contact_change": 0.011999515388477322,
+    "nonlinear_iris_regions_with_active_rows": 0,
+    "nonlinear_rows_submitted": 0,
+    "native_iris_and_holdout_seconds": 332.40400819212664,
+    "rejected_native_iris_seconds": 0,
+    "rejected_native_iris_attempts": 0,
+    "accepted_iris_warning_count": 48,
+    "prepare_seconds": 346.5724059169879,
+    "global_gcs_seconds": 59.60269283305388,
+    "measured_inside": {
+      "satisfied": true,
+      "samples": 10479,
+      "robot_maximum_g_m": -0.006997684036397445,
+      "objects_maximum_g_m": -0.268324144955586,
+      "counterexamples": [],
+      "scope": "Every saved measured state; actual finger positions and actual free-body poses of all cups; no welded-payload shortcut"
+    },
+    "actions": {
+      "clear_table_1": {
+        "lifted_with_bilateral_contact": true,
+        "bilateral_throughout_hold_and_carry": true,
+        "carried_without_table_support": true,
+        "hold_carry_slip_m": 0.005485067808803804,
+        "released_and_settled_on_destination": true,
+        "final_position_error_m": 0.0009765710527755364,
+        "object_displacement_m": 1.7855640310001755,
+        "satisfied": true
+      },
+      "clear_table_2": {
+        "lifted_with_bilateral_contact": true,
+        "bilateral_throughout_hold_and_carry": true,
+        "carried_without_table_support": true,
+        "hold_carry_slip_m": 0.005514870217831809,
+        "released_and_settled_on_destination": true,
+        "final_position_error_m": 0.001187960582229019,
+        "object_displacement_m": 3.3924145345469223,
+        "satisfied": true
+      },
+      "clear_table_3": {
+        "lifted_with_bilateral_contact": true,
+        "bilateral_throughout_hold_and_carry": true,
+        "carried_without_table_support": true,
+        "hold_carry_slip_m": 0.004252677762462332,
+        "released_and_settled_on_destination": true,
+        "final_position_error_m": 0.0007441712349663291,
+        "object_displacement_m": 2.489815679019739,
+        "satisfied": true
+      }
+    },
+    "regions": 755,
+    "iris_regions": 749,
+    "contact_patches": 6,
+    "unexpected_contacts": 0,
+    "human_access_violations": 0,
+    "execution_duration_s": 523.875
+  },
+  {
+    "method": "nonlinear",
+    "dimension": 10,
+    "motion_modes": 7,
+    "variable_contacts": 6,
+    "solve_path_calls": 1,
+    "base_length_m": 21.006194598994995,
+    "arm_length_rad": 34.27043811123255,
+    "simultaneous_base_arm_segments": 19,
+    "simultaneous_thresholds": {
+      "base_translation_m": 0.001,
+      "arm_joint_norm_rad": 0.005
+    },
+    "base_distance_during_simultaneous_segments_m": 0.047789379173476025,
+    "maximum_contact_change": 0.011999882632849124,
+    "nonlinear_iris_regions_with_active_rows": 29,
+    "nonlinear_rows_submitted": 221,
+    "native_iris_and_holdout_seconds": 500.37280370958615,
+    "rejected_native_iris_seconds": 0,
+    "rejected_native_iris_attempts": 0,
+    "accepted_iris_warning_count": 50,
+    "prepare_seconds": 513.1737220409559,
+    "global_gcs_seconds": 47.27082620805595,
+    "measured_inside": {
+      "satisfied": true,
+      "samples": 10276,
+      "robot_maximum_g_m": -0.01979984984128702,
+      "objects_maximum_g_m": -0.28245298249061346,
+      "counterexamples": [],
+      "scope": "Every saved measured state; actual finger positions and actual free-body poses of all cups; no welded-payload shortcut"
+    },
+    "actions": {
+      "clear_table_1": {
+        "lifted_with_bilateral_contact": true,
+        "bilateral_throughout_hold_and_carry": true,
+        "carried_without_table_support": true,
+        "hold_carry_slip_m": 0.005489603707048651,
+        "released_and_settled_on_destination": true,
+        "final_position_error_m": 0.0006620598760866739,
+        "object_displacement_m": 1.7852484929733519,
+        "satisfied": true
+      },
+      "clear_table_2": {
+        "lifted_with_bilateral_contact": true,
+        "bilateral_throughout_hold_and_carry": true,
+        "carried_without_table_support": true,
+        "hold_carry_slip_m": 0.005424364273959647,
+        "released_and_settled_on_destination": true,
+        "final_position_error_m": 0.0010192658312439342,
+        "object_displacement_m": 3.3924808043248813,
+        "satisfied": true
+      },
+      "clear_table_3": {
+        "lifted_with_bilateral_contact": true,
+        "bilateral_throughout_hold_and_carry": true,
+        "carried_without_table_support": true,
+        "hold_carry_slip_m": 0.0043330626243237086,
+        "released_and_settled_on_destination": true,
+        "final_position_error_m": 0.0011045904536501965,
+        "object_displacement_m": 2.489299580315837,
+        "satisfied": true
+      }
+    },
+    "regions": 657,
+    "iris_regions": 651,
+    "contact_patches": 6,
+    "unexpected_contacts": 0,
+    "human_access_violations": 0,
+    "execution_duration_s": 513.75
+  }
+]

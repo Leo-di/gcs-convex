@@ -1,0 +1,74 @@
+[
+  {
+    "contact": "clear_table_1_grasp",
+    "incoming": [
+      37
+    ],
+    "outgoing": [
+      0
+    ],
+    "witness_maximum_fk_error": 4.9571068223224463e-20,
+    "robot_point_fixed": false,
+    "scope": "Conservative exact-witness-connected subset; untested contacts are not declared infeasible"
+  },
+  {
+    "contact": "clear_table_1_place",
+    "incoming": [
+      59
+    ],
+    "outgoing": [
+      0
+    ],
+    "witness_maximum_fk_error": 6.128408956370799e-20,
+    "robot_point_fixed": false,
+    "scope": "Conservative exact-witness-connected subset; untested contacts are not declared infeasible"
+  },
+  {
+    "contact": "clear_table_2_grasp",
+    "incoming": [
+      178
+    ],
+    "outgoing": [
+      0
+    ],
+    "witness_maximum_fk_error": 1.90664429338083e-19,
+    "robot_point_fixed": false,
+    "scope": "Conservative exact-witness-connected subset; untested contacts are not declared infeasible"
+  },
+  {
+    "contact": "clear_table_2_place",
+    "incoming": [
+      113
+    ],
+    "outgoing": [
+      0
+    ],
+    "witness_maximum_fk_error": 7.788140867019335e-19,
+    "robot_point_fixed": false,
+    "scope": "Conservative exact-witness-connected subset; untested contacts are not declared infeasible"
+  },
+  {
+    "contact": "clear_table_3_grasp",
+    "incoming": [
+      124
+    ],
+    "outgoing": [
+      0
+    ],
+    "witness_maximum_fk_error": 4.96703872279983e-19,
+    "robot_point_fixed": false,
+    "scope": "Conservative exact-witness-connected subset; untested contacts are not declared infeasible"
+  },
+  {
+    "contact": "clear_table_3_place",
+    "incoming": [
+      79
+    ],
+    "outgoing": [
+      0
+    ],
+    "witness_maximum_fk_error": 8.647796694073696e-19,
+    "robot_point_fixed": false,
+    "scope": "Conservative exact-witness-connected subset; untested contacts are not declared infeasible"
+  }
+]

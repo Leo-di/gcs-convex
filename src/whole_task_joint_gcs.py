@@ -115,6 +115,8 @@ class MotionMode:
     supports: list
     regions: list
     records: list
+    compiled_inside: object = None
+    inside_interface: str | None = None
 
 
 def make_modes(config, reference, actions):
@@ -258,7 +260,14 @@ def support_gap(mode, q):
 def spatial_query(mode, q):
     if hasattr(mode.oracle, "clear"):
         mode.oracle.clear.passage.reset_witness_cache()
-    return mode.oracle.query(q, mode.grip)
+    result = mode.oracle.query(q, mode.grip)
+    if mode.compiled_inside is not None:
+        # Inside is handled by the compiler. Preserve the separate access rule
+        # here without also clipping both interfaces to the legacy room bound.
+        result["residual_m"] = result.get("keep_clear", {}).get("minimum_residual_m")
+        if result["residual_m"] is None:
+            result["residual_m"] = float("inf")
+    return result
 
 
 def grow_mode_cover(mode, out, *, seed, max_seconds=1200, domain_policy="guide_local"):
@@ -270,7 +279,11 @@ def grow_mode_cover(mode, out, *, seed, max_seconds=1200, domain_policy="guide_l
     spec = mode.scene.config["whole_body_planning"]
     limits_lo = np.r_[[-1.45, -2.3, -np.pi], spec["joint_lower_limits"]]
     limits_hi = np.r_[[5.25, 5.05, np.pi], spec["joint_upper_limits"]]
-    padding = np.r_[[0.015, 0.015, 0.002], [0.004] * 7]
+    tuning = mode.scene.config.get("whole_task_planning", {})
+    padding = np.array(
+        tuning.get("region_padding", [0.015, 0.015, 0.002] + [0.004] * 7)
+    )
+    inside = mode.compiled_inside
 
     def add(a, b, depth=0, scale=1.0):
         if time.monotonic() - began > max_seconds or len(mode.regions) > 800:
@@ -314,7 +327,34 @@ def grow_mode_cover(mode, out, *, seed, max_seconds=1200, domain_policy="guide_l
             add(a, mid, depth + 1, scale * 0.6)
             add(mid, b, depth + 1, scale * 0.6)
             return
+        inside_bound = None
+        if inside is not None:
+            inside_bound = float(np.max(inside.box_upper_bound(lo, hi)))
+            if any(np.max(inside.g(q)) > 1e-7 for q in (a, b)):
+                raise RuntimeError(
+                    "Guide endpoint violates compiled Inside in " + mode.name
+                )
+            invalid_inside = (
+                inside_bound > -1e-6
+                if mode.inside_interface == "conservative"
+                else np.max(inside.g(center)) >= -1e-6
+            )
+            if invalid_inside:
+                if depth >= 14:
+                    raise RuntimeError("No Inside-feasible joint input domain")
+                mid = (a + b) / 2
+                add(a, mid, depth + 1, scale * 0.6)
+                add(mid, b, depth + 1, scale * 0.6)
+                return
         domain = HPolyhedron.MakeBox(lo, hi)
+        active_inside_rows = (
+            inside.active_rows(lo, hi) if inside is not None else np.array([], int)
+        )
+        inside_program = (
+            inside.to_program(active_inside_rows)
+            if inside is not None and mode.inside_interface == "nonlinear"
+            else None
+        )
         from .base_clearance_domains import guard
 
         tracking_margin = float(
@@ -366,14 +406,49 @@ def grow_mode_cover(mode, out, *, seed, max_seconds=1200, domain_policy="guide_l
             p.mixing_steps = 20
             p.random_seed = seed + len(mode.regions)
             p.containment_points = np.column_stack([a, center, b])
-            region = IrisNp2(
-                mode.checker,
-                Hyperellipsoid.MakeHypersphere(
-                    min(0.0001, float(np.min(hi - lo) / 8)), center
-                ),
-                domain,
-                options,
-            )
+            if inside_program is not None:
+                p.prog_with_additional_constraints = inside_program
+            from .inside_iris_comparison import WarningCapture
+            import logging
+
+            capture = WarningCapture()
+            logger = logging.getLogger("drake")
+            logger.addHandler(capture)
+            failure = None
+            try:
+                region = IrisNp2(
+                    mode.checker,
+                    Hyperellipsoid.MakeHypersphere(
+                        min(0.0001, float(np.min(hi - lo) / 8)), center
+                    ),
+                    domain,
+                    options,
+                )
+                if any("voids" in message for message in capture.messages):
+                    failure = "IRIS probabilistic test was voided"
+            except RuntimeError as exc:
+                failure = str(exc)
+            finally:
+                logger.removeHandler(capture)
+            if failure is not None:
+                write(
+                    out / f"native_rejected_{len(mode.regions)}_{depth}.json",
+                    dict(
+                        error=failure,
+                        warnings=capture.messages,
+                        lower=lo.tolist(),
+                        upper=hi.tolist(),
+                        seconds=time.monotonic() - start,
+                    ),
+                )
+                if depth >= 14:
+                    raise RuntimeError(
+                        "IRIS failed after bounded refinement: " + failure
+                    )
+                mid = (a + b) / 2
+                add(a, mid, depth + 1, scale * 0.5)
+                add(mid, b, depth + 1, scale * 0.5)
+                return
             if not region.PointInSet(a, 1e-7) or not region.PointInSet(b, 1e-7):
                 raise RuntimeError("Global cover excludes source guide endpoint")
             tested = 0
@@ -384,6 +459,8 @@ def grow_mode_cover(mode, out, *, seed, max_seconds=1200, domain_policy="guide_l
                     continue
                 tested += 1
                 if not mode.checker.CheckConfigCollisionFree(mode.mapping(sample)):
+                    bad.append(sample.tolist())
+                elif inside is not None and np.max(inside.g(sample)) > 1e-7:
                     bad.append(sample.tolist())
                 if tested == 32:
                     break
@@ -403,6 +480,16 @@ def grow_mode_cover(mode, out, *, seed, max_seconds=1200, domain_policy="guide_l
                 add(mid, b, depth + 1, scale * 0.5)
                 return
         record = dict(
+            inside_interface=mode.inside_interface,
+            inside_active_nonlinear_rows=active_inside_rows.tolist(),
+            inside_certified_rows=(
+                len(inside.labels) - len(active_inside_rows)
+                if inside is not None
+                else 0
+            ),
+            iris_warnings=[] if near else capture.messages,
+            inside_maximum_domain_bound_m=inside_bound,
+            inside_nonlinear_program_in_iris=inside_program is not None and not near,
             base_clearance_guard=base_proof,
             domain_policy=domain_policy,
             semantic_expansion=expansion,
@@ -436,8 +523,10 @@ def grow_mode_cover(mode, out, *, seed, max_seconds=1200, domain_policy="guide_l
             int(
                 np.ceil(
                     max(
-                        np.linalg.norm(b[:2] - a[:2]) / 0.22,
-                        np.max(np.abs(b[2:] - a[2:])) / 0.15,
+                        np.linalg.norm(b[:2] - a[:2])
+                        / tuning.get("cover_translation_step_m", 0.22),
+                        np.max(np.abs(b[2:] - a[2:]))
+                        / tuning.get("cover_rotation_step_rad", 0.15),
                     )
                 )
             ),
@@ -615,6 +704,27 @@ def optimize_task(
                     )
                     # Bind via subgraph placeholders only to this contact-patch vertex.
                     v.AddConstraint(v_binding, RESTRICTION)
+                if mode.compiled_inside is not None:
+                    compiled = mode.compiled_inside
+                    active = compiled.active_rows(record["lower"], record["upper"])
+                    for alpha in (0.0, 0.5, 1.0):
+                        if not len(active):
+                            continue
+
+                        def contact_inside(
+                            z, alpha=alpha, compiled=compiled, active=active
+                        ):
+                            return compiled.g((1 - alpha) * z[:10] + alpha * z[10:])[
+                                active
+                            ]
+
+                        binding = callable_binding(
+                            contact_inside,
+                            np.full(len(active), -np.inf),
+                            np.zeros(len(active)),
+                            np.r_[v.x()[:10], v.x()[10:20]],
+                        )
+                        v.AddConstraint(binding, RESTRICTION)
         metadata.append(
             dict(
                 name=mode.name,
@@ -639,6 +749,21 @@ def optimize_task(
                 cp,
             )
             gate.AddVertexConstraint(binding, RESTRICTION)
+            for neighbor in (modes[i], modes[i + 1]):
+                if neighbor.compiled_inside is not None:
+                    compiled = neighbor.compiled_inside
+                    active = compiled.active_rows(record["lower"], record["upper"])
+                    if not len(active):
+                        continue
+                    binding = callable_binding(
+                        lambda q, compiled=compiled, active=active: compiled.g(q)[
+                            active
+                        ],
+                        np.full(len(active), -np.inf),
+                        np.zeros(len(active)),
+                        cp,
+                    )
+                    gate.AddVertexConstraint(binding, RESTRICTION)
             subgraphs.append(gate)
             metadata.append(record)
     start = planner.AddRegions(

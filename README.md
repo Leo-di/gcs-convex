@@ -4,6 +4,8 @@ Research code for constructing spatially constrained IRIS regions and planning m
 
 ## Start here
 
+See [Inside in the complete cafe task](docs/inside_cafe.md) for the ten-coordinate base/arm compiler, three-cup task graph, both IRIS interfaces, contact constraints, measured execution checks, and a portable common guide.
+
 0. [Inside DSL → compiler → IRIS → GCS](docs/inside_compiler.md): runnable seven-joint comparison of conservative input domains and direct nonlinear semantic constraints, with measured results and actual region matrices.
 1. [Semantic constraints at the IRIS interface](docs/semantic_iris.md): the calculation, source-code reading order, and a runnable example.
 2. [Example input domains and IRIS matrices](docs/examples/semantic_iris_inspection.json).
@@ -82,6 +84,17 @@ python -m pytest -q \
 | [`whole_task_execution.py`](src/whole_task_execution.py) | Reference reconstruction, independent checks, and execution. |
 
 ## Whole-task experiments
+
+The complete Inside comparison has its own entry point:
+
+```bash
+python scripts/prepare_inside_cafe_guide.py --output outputs/inside_cafe_guide
+LCM_DEFAULT_URL=memq:// OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 \
+python scripts/run_inside_cafe.py --guide-run outputs/inside_cafe_guide \
+  --output outputs/inside_cafe_run --execute
+```
+
+Both branches build fresh covers from the same staged guide. Each final trajectory is obtained from one full-task 10D graph with variable contact configurations. Task order and finger profiles remain supplied. Cafe assets are external; the guide bundle contains configuration and reference data only.
 
 A fixed-order three-cup development run passed continuous contact execution and independent sampled access checks. The subsequent cold-search, larger-domain, and base-clearance extensions are experimental. Recent failures include nonlinear restriction failure, execution contact, and conservative-domain rejection; a successful earlier run does not validate these extensions.
 

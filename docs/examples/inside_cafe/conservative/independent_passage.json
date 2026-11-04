@@ -1,0 +1,86 @@
+{
+  "task_satisfied": true,
+  "human_access_satisfied": true,
+  "measured_samples": 10479,
+  "violations": 0,
+  "connection_violations": {
+    "entrance_to_customer_table": 0,
+    "customer_table_to_service": 0
+  },
+  "outage_ranges": [],
+  "unexpected_contacts": 0,
+  "actions": {
+    "clear_table_1": {
+      "lifted_with_bilateral_contact": true,
+      "bilateral_throughout_hold_and_carry": true,
+      "carried_without_table_support": true,
+      "hold_carry_slip_m": 0.005485067808803804,
+      "released_and_settled_on_destination": true,
+      "final_position_error_m": 0.0009765710527755364,
+      "object_displacement_m": 1.7855640310001755,
+      "satisfied": true
+    },
+    "clear_table_2": {
+      "lifted_with_bilateral_contact": true,
+      "bilateral_throughout_hold_and_carry": true,
+      "carried_without_table_support": true,
+      "hold_carry_slip_m": 0.005514870217831809,
+      "released_and_settled_on_destination": true,
+      "final_position_error_m": 0.001187960582229019,
+      "object_displacement_m": 3.3924145345469223,
+      "satisfied": true
+    },
+    "clear_table_3": {
+      "lifted_with_bilateral_contact": true,
+      "bilateral_throughout_hold_and_carry": true,
+      "carried_without_table_support": true,
+      "hold_carry_slip_m": 0.004252677762462332,
+      "released_and_settled_on_destination": true,
+      "final_position_error_m": 0.0007441712349663291,
+      "object_displacement_m": 2.489815679019739,
+      "satisfied": true
+    }
+  },
+  "model": {
+    "id": "entrance_to_customer_table",
+    "lower_xy": [
+      -1.35,
+      -2.3
+    ],
+    "upper_xy": [
+      5.15,
+      4.9
+    ],
+    "start_xy": [
+      0.0,
+      -1.85
+    ],
+    "goal_xy": [
+      3.65,
+      2.65
+    ],
+    "radius_m": 0.28,
+    "height_m": 1.7,
+    "margin_m": 0.02,
+    "resolution_m": 0.08,
+    "enforce": true,
+    "connections": [
+      {
+        "id": "customer_table_to_service",
+        "start_xy": [
+          3.65,
+          2.65
+        ],
+        "goal_xy": [
+          2.9499999999999997,
+          2.45
+        ]
+      }
+    ]
+  },
+  "full_cell_guard_m": 0.056568542494923796,
+  "trace_sha256": "40ecfcf9d4ffa239a42e8061e207874d643cf3e080760147ff47ba1ef1af20c1",
+  "audit_wall_seconds": 30.54524154192768,
+  "audit": "Fresh SciPy four-connected components at every saved physical state; each route checked; path witnesses independently validated",
+  "scope": "Static people and furniture, conservative capsule/body-AABBs, sampled time; not a walking or continuous-time guarantee"
+}

@@ -1,0 +1,250 @@
+[
+  {
+    "method": "conservative",
+    "matched_input_sha256": "342cc66717efd8cca931886616d70d52427f84d5548808b7d9a8403708c45f6e",
+    "reference_satisfied": true,
+    "execution_satisfied": true,
+    "prepare_seconds": 346.5724059169879,
+    "global_gcs_seconds": 59.60269283305388,
+    "regions": 755,
+    "iris_regions": 749,
+    "contact_patches": 6,
+    "region_growth_and_holdout_seconds": 332.4040392341558,
+    "joint_inside_audit": {
+      "satisfied": true,
+      "modes": [
+        {
+          "mode": "clear_table_1_empty",
+          "dimension": 10,
+          "samples": 421,
+          "maximum_g_m": -0.08,
+          "satisfied": true,
+          "counterexamples": [],
+          "payload_predicate": false
+        },
+        {
+          "mode": "clear_table_1_held",
+          "dimension": 10,
+          "samples": 501,
+          "maximum_g_m": -0.08,
+          "satisfied": true,
+          "counterexamples": [],
+          "payload_predicate": true
+        },
+        {
+          "mode": "clear_table_2_empty",
+          "dimension": 10,
+          "samples": 1239,
+          "maximum_g_m": -0.015997158886603913,
+          "satisfied": true,
+          "counterexamples": [],
+          "payload_predicate": false
+        },
+        {
+          "mode": "clear_table_2_held",
+          "dimension": 10,
+          "samples": 744,
+          "maximum_g_m": -0.007003266540179354,
+          "satisfied": true,
+          "counterexamples": [],
+          "payload_predicate": true
+        },
+        {
+          "mode": "clear_table_3_empty",
+          "dimension": 10,
+          "samples": 891,
+          "maximum_g_m": -0.08,
+          "satisfied": true,
+          "counterexamples": [],
+          "payload_predicate": false
+        },
+        {
+          "mode": "clear_table_3_held",
+          "dimension": 10,
+          "samples": 470,
+          "maximum_g_m": -0.08,
+          "satisfied": true,
+          "counterexamples": [],
+          "payload_predicate": true
+        },
+        {
+          "mode": "final_retreat",
+          "dimension": 10,
+          "samples": 386,
+          "maximum_g_m": -0.08,
+          "satisfied": true,
+          "counterexamples": [],
+          "payload_predicate": false
+        }
+      ]
+    },
+    "measured_inside_audit": {
+      "satisfied": true,
+      "samples": 10479,
+      "robot_maximum_g_m": -0.006997684036397445,
+      "objects_maximum_g_m": -0.268324144955586,
+      "counterexamples": [],
+      "scope": "Every saved measured state; actual finger positions and actual free-body poses of all cups; no welded-payload shortcut"
+    },
+    "actions": {
+      "clear_table_1": {
+        "lifted_with_bilateral_contact": true,
+        "bilateral_throughout_hold_and_carry": true,
+        "carried_without_table_support": true,
+        "hold_carry_slip_m": 0.005485067808803804,
+        "released_and_settled_on_destination": true,
+        "final_position_error_m": 0.0009765710527755364,
+        "object_displacement_m": 1.7855640310001755,
+        "satisfied": true
+      },
+      "clear_table_2": {
+        "lifted_with_bilateral_contact": true,
+        "bilateral_throughout_hold_and_carry": true,
+        "carried_without_table_support": true,
+        "hold_carry_slip_m": 0.005514870217831809,
+        "released_and_settled_on_destination": true,
+        "final_position_error_m": 0.001187960582229019,
+        "object_displacement_m": 3.3924145345469223,
+        "satisfied": true
+      },
+      "clear_table_3": {
+        "lifted_with_bilateral_contact": true,
+        "bilateral_throughout_hold_and_carry": true,
+        "carried_without_table_support": true,
+        "hold_carry_slip_m": 0.004252677762462332,
+        "released_and_settled_on_destination": true,
+        "final_position_error_m": 0.0007441712349663291,
+        "object_displacement_m": 2.489815679019739,
+        "satisfied": true
+      }
+    },
+    "unexpected_contacts": 0,
+    "human_access_satisfied": true,
+    "total_seconds": 797.4737072919961,
+    "source_changes_during_run": []
+  },
+  {
+    "method": "nonlinear",
+    "matched_input_sha256": "342cc66717efd8cca931886616d70d52427f84d5548808b7d9a8403708c45f6e",
+    "reference_satisfied": true,
+    "execution_satisfied": true,
+    "prepare_seconds": 513.1737220409559,
+    "global_gcs_seconds": 47.27082620805595,
+    "regions": 657,
+    "iris_regions": 651,
+    "contact_patches": 6,
+    "region_growth_and_holdout_seconds": 500.3728375855135,
+    "joint_inside_audit": {
+      "satisfied": true,
+      "modes": [
+        {
+          "mode": "clear_table_1_empty",
+          "dimension": 10,
+          "samples": 421,
+          "maximum_g_m": -0.08,
+          "satisfied": true,
+          "counterexamples": [],
+          "payload_predicate": false
+        },
+        {
+          "mode": "clear_table_1_held",
+          "dimension": 10,
+          "samples": 501,
+          "maximum_g_m": -0.08,
+          "satisfied": true,
+          "counterexamples": [],
+          "payload_predicate": true
+        },
+        {
+          "mode": "clear_table_2_empty",
+          "dimension": 10,
+          "samples": 1199,
+          "maximum_g_m": -0.030824580547639258,
+          "satisfied": true,
+          "counterexamples": [],
+          "payload_predicate": false
+        },
+        {
+          "mode": "clear_table_2_held",
+          "dimension": 10,
+          "samples": 730,
+          "maximum_g_m": -0.019903304166373204,
+          "satisfied": true,
+          "counterexamples": [],
+          "payload_predicate": true
+        },
+        {
+          "mode": "clear_table_3_empty",
+          "dimension": 10,
+          "samples": 891,
+          "maximum_g_m": -0.08,
+          "satisfied": true,
+          "counterexamples": [],
+          "payload_predicate": false
+        },
+        {
+          "mode": "clear_table_3_held",
+          "dimension": 10,
+          "samples": 471,
+          "maximum_g_m": -0.08,
+          "satisfied": true,
+          "counterexamples": [],
+          "payload_predicate": true
+        },
+        {
+          "mode": "final_retreat",
+          "dimension": 10,
+          "samples": 387,
+          "maximum_g_m": -0.08,
+          "satisfied": true,
+          "counterexamples": [],
+          "payload_predicate": false
+        }
+      ]
+    },
+    "measured_inside_audit": {
+      "satisfied": true,
+      "samples": 10276,
+      "robot_maximum_g_m": -0.01979984984128702,
+      "objects_maximum_g_m": -0.28245298249061346,
+      "counterexamples": [],
+      "scope": "Every saved measured state; actual finger positions and actual free-body poses of all cups; no welded-payload shortcut"
+    },
+    "actions": {
+      "clear_table_1": {
+        "lifted_with_bilateral_contact": true,
+        "bilateral_throughout_hold_and_carry": true,
+        "carried_without_table_support": true,
+        "hold_carry_slip_m": 0.005489603707048651,
+        "released_and_settled_on_destination": true,
+        "final_position_error_m": 0.0006620598760866739,
+        "object_displacement_m": 1.7852484929733519,
+        "satisfied": true
+      },
+      "clear_table_2": {
+        "lifted_with_bilateral_contact": true,
+        "bilateral_throughout_hold_and_carry": true,
+        "carried_without_table_support": true,
+        "hold_carry_slip_m": 0.005424364273959647,
+        "released_and_settled_on_destination": true,
+        "final_position_error_m": 0.0010192658312439342,
+        "object_displacement_m": 3.3924808043248813,
+        "satisfied": true
+      },
+      "clear_table_3": {
+        "lifted_with_bilateral_contact": true,
+        "bilateral_throughout_hold_and_carry": true,
+        "carried_without_table_support": true,
+        "hold_carry_slip_m": 0.0043330626243237086,
+        "released_and_settled_on_destination": true,
+        "final_position_error_m": 0.0011045904536501965,
+        "object_displacement_m": 2.489299580315837,
+        "satisfied": true
+      }
+    },
+    "unexpected_contacts": 0,
+    "human_access_satisfied": true,
+    "total_seconds": 940.742630957975,
+    "source_changes_during_run": []
+  }
+]

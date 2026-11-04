@@ -47,22 +47,27 @@ class CompiledInside:
     def __init__(self, scene, document, base, gripper):
         self.scene = scene
         self.regions, self.predicates = parse(document)
-        self.dimension = 7
-        base, gripper = np.asarray(base, float), np.asarray(gripper, float)
+        self.dimension = 10 if base is None else 7
+        base = None if base is None else np.asarray(base, float)
+        gripper = np.asarray(gripper, float)
         if (
-            base.shape != (3,)
+            (base is not None and (base.shape != (3,) or not np.all(np.isfinite(base))))
             or gripper.shape != (2,)
-            or not np.all(np.isfinite(base))
             or not np.all(np.isfinite(gripper))
         ):
             raise ValueError("Finite fixed base and gripper positions required")
-        self.base = base.copy()
+        self.base = None if base is None else base.copy()
         self.gripper = gripper.copy()
-        set_robot_configuration(
-            scene, base, scene.config["pick_task"]["navigation_arm_q"], gripper
-        )
+        if base is None:
+            scene.plant.SetPositions(
+                scene.plant_context, scene.gripper_instance, gripper
+            )
+        else:
+            set_robot_configuration(
+                scene, base, scene.config["pick_task"]["navigation_arm_q"], gripper
+            )
         full = scene.plant.GetPositions(scene.plant_context).copy()
-        self.indices = _reduced_position_indices(scene)[3:]
+        self.indices = _reduced_position_indices(scene)[0 if base is None else 3 :]
         self.mapping = _make_parameterization(full, self.indices)
         self.ad = scene.plant.ToAutoDiffXd()
         self.ad_context = self.ad.CreateDefaultContext()
@@ -70,6 +75,19 @@ class CompiledInside:
         ins = scene.scene_graph.model_inspector()
         joints = [plant.get_joint(i) for i in plant.GetJointIndices()]
         self.parent = {int(j.child_body().index()): j for j in joints}
+        if self.dimension == 10 and (
+            scene.base_joint.parent_body().index() != plant.world_body().index()
+            or not np.allclose(
+                scene.base_joint.frame_on_parent()
+                .GetFixedPoseInBodyFrame()
+                .rotation()
+                .matrix(),
+                np.eye(3),
+            )
+        ):
+            raise ValueError(
+                "Joint Inside compilation requires a world-aligned planar base"
+            )
         self.arm_columns = {
             int(j.child_body().index()): int(
                 np.where(self.indices == j.position_start())[0][0]
@@ -82,12 +100,21 @@ class CompiledInside:
             arm=[scene.arm_instance],
             gripper=[scene.gripper_instance],
             robot=[scene.base_instance, scene.arm_instance, scene.gripper_instance],
+            payload=(
+                [scene.attached_cup_instance]
+                if scene.attached_cup_instance is not None
+                else []
+            ),
         )
         self.items = []
         self.labels = []
         lipschitz = []
         for predicate in self.predicates:
             region = self.regions[predicate.region]
+            if not sets[predicate.entity]:
+                raise ValueError(
+                    "Inside(payload, ...) requires a registered attached payload"
+                )
             for instance in sets[predicate.entity]:
                 for index in plant.GetBodyIndices(instance):
                     body = plant.get_body(index)
@@ -110,18 +137,32 @@ class CompiledInside:
                                     face=face,
                                 )
                             )
-                            lipschitz.append(coefficients)
+                            row = coefficients.copy()
+                            if self.dimension == 10:
+                                normal = region.normals[face]
+                                row[:2] = np.abs(normal[:2])
+                                row[2] *= np.linalg.norm(normal[:2])
+                            lipschitz.append(row)
         if not self.items:
             raise ValueError("Predicate entities have no supported collision geometry")
         self.lipschitz = np.asarray(lipschitz)
 
     def _motion_coefficients(self, body, offset, shape, full):
-        result = np.zeros(7)
+        result = np.zeros(self.dimension)
         reach = float(np.linalg.norm(offset.translation()) + radius(shape))
         node = int(body.index())
         while node in self.parent:
             joint = self.parent[node]
             if type(joint).__name__ == "PlanarJoint":
+                if self.dimension == 10:
+                    result[:2] = 1.0
+                    result[2] = reach + float(
+                        np.linalg.norm(
+                            joint.frame_on_child()
+                            .GetFixedPoseInBodyFrame()
+                            .translation()
+                        )
+                    )
                 break
             reach += float(
                 np.linalg.norm(
@@ -146,8 +187,8 @@ class CompiledInside:
 
     def g(self, q):
         q = np.asarray(q).ravel()
-        if q.shape != (7,):
-            raise ValueError("Seven arm coordinates required")
+        if q.shape != (self.dimension,):
+            raise ValueError(f"{self.dimension} configuration coordinates required")
         ad = isinstance(q[0], AutoDiffXd)
         if not ad and not np.all(np.isfinite(q)):
             raise ValueError("Finite coordinates required")
@@ -177,27 +218,40 @@ class CompiledInside:
     def box_upper_bound(self, lower, upper):
         lo, hi = np.asarray(lower, float), np.asarray(upper, float)
         if (
-            lo.shape != (7,)
-            or hi.shape != (7,)
+            lo.shape != (self.dimension,)
+            or hi.shape != (self.dimension,)
             or not np.all(np.isfinite([lo, hi]))
             or np.any(lo > hi)
         ):
-            raise ValueError("Finite ordered seven-dimensional bounds required")
+            raise ValueError("Finite ordered configuration bounds required")
         return self.g((lo + hi) / 2) + self.lipschitz @ ((hi - lo) / 2)
 
-    def to_program(self):
+    def active_rows(self, lower, upper):
+        """Rows not already certified over the complete supplied domain."""
+        return np.flatnonzero(self.box_upper_bound(lower, upper) > -1e-6)
+
+    def to_program(self, rows=None):
         program = MathematicalProgram()
-        q = program.NewContinuousVariables(7, "q")
-        program.AddConstraint(
-            self.g, np.full(len(self.labels), -np.inf), np.zeros(len(self.labels)), q
-        )
+        q = program.NewContinuousVariables(self.dimension, "q")
+        rows = np.arange(len(self.labels)) if rows is None else np.asarray(rows, int)
+        if len(rows):
+            program.AddConstraint(
+                lambda x: self.g(x)[rows],
+                np.full(len(rows), -np.inf),
+                np.zeros(len(rows)),
+                q,
+            )
         return program
 
     def metadata(self):
         return dict(
-            dimension=7,
+            dimension=self.dimension,
             sign_convention="g(q) <= 0",
-            fixed_base_q=self.base.tolist(),
+            fixed_base_q=None if self.base is None else self.base.tolist(),
+            coordinates=(
+                ["base_x_m", "base_y_m", "base_yaw_rad"] if self.dimension == 10 else []
+            )
+            + [f"arm_{i + 1}_rad" for i in range(7)],
             fixed_gripper_q=self.gripper.tolist(),
             constraints=self.labels,
             regions={
@@ -211,9 +265,9 @@ class CompiledInside:
             formula="g = n @ t_WG(q) + support(shape, R_WG(q).T @ n) + margin - b",
             native_interface="sampled_iris_options.prog_with_additional_constraints",
             per_joint_displacement_bounds=self.lipschitz.tolist(),
-            geometry="Exact support functions for registered primitive collision shapes; payload excluded",
+            geometry="Exact support functions for registered primitive collision shapes; payload requires its own predicate",
         )
 
 
-def compile_predicates(document, scene, *, base, gripper):
+def compile_predicates(document, scene, *, base=None, gripper):
     return CompiledInside(scene, document, base, gripper)

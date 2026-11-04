@@ -114,3 +114,69 @@ def test_scaled_polyhedron_preserves_meter_margin_and_predicate_conjunction(comp
     np.testing.assert_allclose(both.g(q)[: len(c.labels)], c.g(q))
     assert len(both.labels) > len(c.labels)
     assert {r["predicate"] for r in both.labels} == {"inside", "arm_only"}
+
+
+def test_joint_base_arm_fk_gradient_and_bounds(compiled):
+    fixed, document = compiled
+    joint = compile_predicates(document, fixed.scene, gripper=fixed.gripper)
+    q = np.r_[fixed.base, [0.23, -0.71, 0.14, -1.28, 0.17, 0.21, -0.13]]
+    assert joint.dimension == 10
+    np.testing.assert_allclose(joint.g(q), fixed.g(q[3:]), atol=1e-10)
+    q[2] = 0.2  # Avoid a box-support cusp at zero base yaw.
+    eps = 1e-6
+    finite = np.column_stack(
+        [
+            (joint.g(q + np.eye(10)[i] * eps) - joint.g(q - np.eye(10)[i] * eps))
+            / (2 * eps)
+            for i in range(10)
+        ]
+    )
+    np.testing.assert_allclose(joint.jacobian(q), finite, atol=2e-6, rtol=2e-5)
+    half = np.array([0.03, 0.02, 0.04] + [0.02] * 7)
+    upper = joint.box_upper_bound(q - half, q + half)
+    for sample in np.random.default_rng(18).uniform(q - half, q + half, (200, 10)):
+        assert np.all(joint.g(sample) <= upper + 1e-10)
+    # Vertical planes are invariant under planar translation and yaw.
+    vertical = [i for i, r in enumerate(joint.labels) if r["face"] in (2, 5)]
+    assert np.all(joint.lipschitz[vertical, :3] == 0)
+
+
+def test_payload_uses_welded_geometry_and_requires_an_attachment(compiled):
+    from pydrake.math import RigidTransform
+    from src.green_room_iris import make_checker
+    from src.inside_cafe import independent_values
+
+    _, doc = compiled
+    d = copy.deepcopy(doc)
+    d["predicates"][0]["entity"] = "payload"
+    with pytest.raises(ValueError, match="attached payload"):
+        compile_predicates(d, compiled[0].scene, gripper=compiled[0].gripper)
+    scene, _, _ = make_checker(
+        load_scene_config("configs/scene_doorway_table.yaml"),
+        [1.4, -0.8, 0],
+        [0.2, -0.5, 0, -1.4, 0, 0, 0],
+        [-0.055, 0.055],
+        RigidTransform([0, 0, 0.15]),
+    )
+    c = compile_predicates(d, scene, gripper=scene.gripper_open_positions)
+    q = np.array([1.4, -0.8, 0.2, 0.2, -0.5, 0.1, -1.4, 0.1, 0.1, 0.1])
+    assert len(c.labels) == 6 and all(r["body"] == "attached_cup" for r in c.labels)
+    np.testing.assert_allclose(c.g(q), independent_values(c, q), atol=1e-10)
+    q[0] += 0.1
+    assert c.g(q)[3] == pytest.approx(independent_values(c, q)[3], abs=1e-10)
+
+
+def test_domain_presolve_only_omits_certified_rows(compiled):
+    c, _ = compiled
+    q = np.array([-0.5, -0.3, 0, -1.4, 0, 0, 0])
+    lo, hi = q - 0.06, q + 0.06
+    active = c.active_rows(lo, hi)
+    assert 0 < len(active) < len(c.labels)
+    omitted = np.setdiff1d(np.arange(len(c.labels)), active)
+    assert np.all(c.box_upper_bound(lo, hi)[omitted] <= -1e-6)
+    p = c.to_program(active)
+    np.testing.assert_allclose(
+        p.GetAllConstraints()[0].evaluator().Eval(q), c.g(q)[active]
+    )
+    for sample in np.random.default_rng(21).uniform(lo, hi, (100, 7)):
+        assert np.all(c.g(sample)[omitted] <= -1e-6)

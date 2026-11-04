@@ -1,0 +1,484 @@
+{
+  "satisfied": true,
+  "actions": {
+    "clear_table_1": {
+      "lifted_with_bilateral_contact": true,
+      "bilateral_throughout_hold_and_carry": true,
+      "carried_without_table_support": true,
+      "hold_carry_slip_m": 0.005485067808803804,
+      "released_and_settled_on_destination": true,
+      "final_position_error_m": 0.0009765710527755364,
+      "object_displacement_m": 1.7855640310001755,
+      "satisfied": true
+    },
+    "clear_table_2": {
+      "lifted_with_bilateral_contact": true,
+      "bilateral_throughout_hold_and_carry": true,
+      "carried_without_table_support": true,
+      "hold_carry_slip_m": 0.005514870217831809,
+      "released_and_settled_on_destination": true,
+      "final_position_error_m": 0.001187960582229019,
+      "object_displacement_m": 3.3924145345469223,
+      "satisfied": true
+    },
+    "clear_table_3": {
+      "lifted_with_bilateral_contact": true,
+      "bilateral_throughout_hold_and_carry": true,
+      "carried_without_table_support": true,
+      "hold_carry_slip_m": 0.004252677762462332,
+      "released_and_settled_on_destination": true,
+      "final_position_error_m": 0.0007441712349663291,
+      "object_displacement_m": 2.489815679019739,
+      "satisfied": true
+    }
+  },
+  "measured_action_preconditions": [
+    {
+      "action": "clear_table_1",
+      "time_s": 0.01,
+      "object_position_errors_m": {
+        "cup": 9.511425327870987e-06,
+        "cup_b": 9.528401881284218e-06,
+        "cup_c": 9.528401881284316e-06
+      },
+      "object_orientation_errors_rad": {
+        "cup": 3.5388297101968464e-07,
+        "cup_b": 0.0,
+        "cup_c": 0.0
+      },
+      "object_speeds_m_s_rad_s": {
+        "cup": [
+          3.412030990708348e-05,
+          3.447092576135979e-05
+        ],
+        "cup_b": [
+          3.2321057296800996e-05,
+          1.4235504997735432e-06
+        ],
+        "cup_c": [
+          3.2321057296871855e-05,
+          1.423550503138432e-06
+        ]
+      },
+      "expected_support_satisfied": {
+        "cup": true,
+        "cup_b": true,
+        "cup_c": true
+      },
+      "expected_world_sha256": "d305793afbbab4ca28d1b2687a04e2e312785106c61a497390ff9456cc0f4bc0",
+      "maximum_arm_error_rad": 6.225151911976582e-22,
+      "maximum_base_error_m_rad": 6.400279851120836e-22,
+      "satisfied": true
+    },
+    {
+      "action": "clear_table_2",
+      "time_s": 107.65,
+      "object_position_errors_m": {
+        "cup": 0.0009765710527757316,
+        "cup_b": 3.066663940049254e-06,
+        "cup_c": 3.0666638942743712e-06
+      },
+      "object_orientation_errors_rad": {
+        "cup": 0.002803090991869103,
+        "cup_b": 1.7120130796843874e-07,
+        "cup_c": 1.7120130796843874e-07
+      },
+      "object_speeds_m_s_rad_s": {
+        "cup": [
+          8.634740086644735e-14,
+          5.2475933075970077e-14
+        ],
+        "cup_b": [
+          5.330708223748111e-09,
+          5.923413311305415e-08
+        ],
+        "cup_c": [
+          5.339312089783881e-09,
+          5.9335103022373414e-08
+        ]
+      },
+      "expected_support_satisfied": {
+        "cup": true,
+        "cup_b": true,
+        "cup_c": true
+      },
+      "expected_world_sha256": "af744d05e2873639d1ce92f244cc384fef663a99677dcaa0a7e87b1724c206a7",
+      "maximum_arm_error_rad": 0.00011074753166573359,
+      "maximum_base_error_m_rad": 1.7781457879451068e-06,
+      "satisfied": true
+    },
+    {
+      "action": "clear_table_3",
+      "time_s": 327.03000000000003,
+      "object_position_errors_m": {
+        "cup": 0.0009765710527757316,
+        "cup_b": 0.0011879605949247799,
+        "cup_c": 3.066664365910363e-06
+      },
+      "object_orientation_errors_rad": {
+        "cup": 0.002803090980303815,
+        "cup_b": 0.00581602360424272,
+        "cup_c": 1.7120130796843874e-07
+      },
+      "object_speeds_m_s_rad_s": {
+        "cup": [
+          8.629262128329779e-14,
+          5.246853433001015e-14
+        ],
+        "cup_b": [
+          5.3397971944129095e-09,
+          5.934082878172054e-08
+        ],
+        "cup_c": [
+          5.327466132849674e-09,
+          5.9204141738524666e-08
+        ]
+      },
+      "expected_support_satisfied": {
+        "cup": true,
+        "cup_b": true,
+        "cup_c": true
+      },
+      "expected_world_sha256": "ff2fd38c4bfa57a418141b772cb70418c4fcd22097cf5d0b41971b0304099f90",
+      "maximum_arm_error_rad": 0.00010742582014477975,
+      "maximum_base_error_m_rad": 5.658854525481373e-06,
+      "satisfied": true
+    }
+  ],
+  "semantic_audit": {
+    "satisfied": true,
+    "samples": 21026,
+    "violations": 0,
+    "counterexamples": [],
+    "phases": [
+      {
+        "id": "clear_table_1.arrive",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 1688,
+            "minimum_residual": 0.32999999999999985
+          },
+          "clear_table_1.arrive_fixed": {
+            "method": "analytical_configuration",
+            "checks": 1688,
+            "minimum_residual": 0.0039903773128052746
+          }
+        }
+      },
+      {
+        "id": "clear_table_1.close",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 252,
+            "minimum_residual": 1.5626743590376524
+          }
+        }
+      },
+      {
+        "id": "clear_table_1.lift",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 144,
+            "minimum_residual": 1.5626716159121044
+          },
+          "clear_table_1.lift_fixed": {
+            "method": "analytical_configuration",
+            "checks": 144,
+            "minimum_residual": 0.0004987239288367813
+          }
+        }
+      },
+      {
+        "id": "clear_table_1.carry",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 1787,
+            "minimum_residual": 1.5653293350480846
+          },
+          "clear_table_1.carry_fixed": {
+            "method": "analytical_configuration",
+            "checks": 1787,
+            "minimum_residual": 0.0002935727967805328
+          }
+        }
+      },
+      {
+        "id": "clear_table_1.lower",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 144,
+            "minimum_residual": 2.59868721799288
+          },
+          "clear_table_1.lower_fixed": {
+            "method": "analytical_configuration",
+            "checks": 144,
+            "minimum_residual": 0.0004416068073717881
+          }
+        }
+      },
+      {
+        "id": "clear_table_1.release",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 324,
+            "minimum_residual": 2.5970640138506558
+          }
+        }
+      },
+      {
+        "id": "clear_table_2.arrive",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 4924,
+            "minimum_residual": 0.41599687540830166
+          },
+          "clear_table_2.arrive_fixed": {
+            "method": "analytical_configuration",
+            "checks": 4924,
+            "minimum_residual": 0.003987920387407754
+          }
+        }
+      },
+      {
+        "id": "clear_table_2.close",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 252,
+            "minimum_residual": 0.5022730161622038
+          }
+        }
+      },
+      {
+        "id": "clear_table_2.lift",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 145,
+            "minimum_residual": 0.49810781623095046
+          },
+          "clear_table_2.lift_fixed": {
+            "method": "analytical_configuration",
+            "checks": 145,
+            "minimum_residual": 0.0004885147128339921
+          }
+        }
+      },
+      {
+        "id": "clear_table_2.carry",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 2988,
+            "minimum_residual": 0.40699768403639736
+          },
+          "clear_table_2.carry_fixed": {
+            "method": "analytical_configuration",
+            "checks": 2988,
+            "minimum_residual": 0.00019881163653662562
+          }
+        }
+      },
+      {
+        "id": "clear_table_2.lower",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 162,
+            "minimum_residual": 2.598773368892269
+          },
+          "clear_table_2.lower_fixed": {
+            "method": "analytical_configuration",
+            "checks": 162,
+            "minimum_residual": 0.0004980479029551184
+          }
+        }
+      },
+      {
+        "id": "clear_table_2.release",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 324,
+            "minimum_residual": 2.5970989802571416
+          }
+        }
+      },
+      {
+        "id": "clear_table_3.arrive",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 3572,
+            "minimum_residual": 0.9868767723168674
+          },
+          "clear_table_3.arrive_fixed": {
+            "method": "analytical_configuration",
+            "checks": 3572,
+            "minimum_residual": 0.003988397131958057
+          }
+        }
+      },
+      {
+        "id": "clear_table_3.close",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 252,
+            "minimum_residual": 0.9870899602663923
+          }
+        }
+      },
+      {
+        "id": "clear_table_3.lift",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 162,
+            "minimum_residual": 0.9888477984892714
+          },
+          "clear_table_3.lift_fixed": {
+            "method": "analytical_configuration",
+            "checks": 162,
+            "minimum_residual": 0.00047951035545680185
+          }
+        }
+      },
+      {
+        "id": "clear_table_3.carry",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 1628,
+            "minimum_residual": 0.9926409598346093
+          },
+          "clear_table_3.carry_fixed": {
+            "method": "analytical_configuration",
+            "checks": 1628,
+            "minimum_residual": 0.0002994827967729187
+          }
+        }
+      },
+      {
+        "id": "clear_table_3.lower",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 162,
+            "minimum_residual": 2.5974110158710855
+          },
+          "clear_table_3.lower_fixed": {
+            "method": "analytical_configuration",
+            "checks": 162,
+            "minimum_residual": 0.00048725666363731365
+          }
+        }
+      },
+      {
+        "id": "clear_table_3.release",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 324,
+            "minimum_residual": 2.5970988444762337
+          }
+        }
+      },
+      {
+        "id": "clear_table_3.retreat",
+        "satisfied": true,
+        "predicates": {
+          "inside": {
+            "method": "analytical_shape_support",
+            "checks": 1792,
+            "minimum_residual": 2.5967583688348435
+          },
+          "clear_table_3.retreat_fixed": {
+            "method": "analytical_configuration",
+            "checks": 1792,
+            "minimum_residual": 0.003992474730562783
+          }
+        }
+      }
+    ],
+    "evaluation": "procedural_interpolated_samples",
+    "scope": "Finite checks of every supplied edge, including phase boundaries; no continuous-time certificate",
+    "source": "measured_execution"
+  },
+  "online_samples": 52388,
+  "minimum_robot_and_objects_room_residual_m": 0.32999999999999985,
+  "minimum_object_exclusion_residual_m": null,
+  "minimum_object_corridor_residual_m": null,
+  "object_corridor_samples": 0,
+  "minimum_object_relative_residual_m": null,
+  "object_relative_samples": 0,
+  "minimum_robot_keep_clear_residual_m": 0.09823237675412505,
+  "room_entry_gate": {
+    "enabled": false,
+    "satisfied": true,
+    "navigation_samples": 0,
+    "minimum_room2_residual_during_navigation_m": null,
+    "handoff": null
+  },
+  "conditional_permissions": {
+    "enabled": false,
+    "samples": 52388,
+    "authorized_region_samples": 0,
+    "events": [
+      {
+        "time_s": 0.01,
+        "phase": "clear_table_1.arrive",
+        "holding_evidence": {},
+        "satisfied": true,
+        "constraints": [],
+        "minimum_locked_residual_m": null,
+        "scope": "All robot collision volumes; conservative axis separation; permission requires current holding"
+      }
+    ],
+    "holding_rule": "Bilateral forces >0.05 N, all table/bin forces <0.05 N, relative drift <=10 mm, sustained >=0.1 s",
+    "scope": "Measured 10 ms observations; revocable permission, no continuous-time safety claim"
+  },
+  "ordered_visits": {
+    "satisfied": true,
+    "complete": true,
+    "progress": {},
+    "events": [],
+    "failures": [],
+    "samples": 52388,
+    "scope": "Carry only; complete object containment counts a visit; future boxes excluded until predecessor completed; sampled observations"
+  },
+  "robot_room_scope": "All phases",
+  "unexpected_contacts": 0,
+  "effort_limits": true,
+  "object_pose_resets_after_initialization": 0,
+  "cup_attachment": false,
+  "scope": "Single continuous free-body SAP execution; measured boundary gates; ideal planar base; finite checks",
+  "method": "one_global_whole_task_joint_GCS",
+  "execution_wall_seconds": 330.02780116698705,
+  "optimization_scope": "All seven robot motion modes and six contact configurations from one shared task solve. Prescribed grasp/release finger profiles and task order."
+}
