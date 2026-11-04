@@ -42,3 +42,6 @@ outputs/*
 .env
 .env.*
 !.env.example
+
+# Local research drafts
+research_proposal*.md

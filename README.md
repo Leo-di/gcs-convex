@@ -4,9 +4,8 @@ Research code for constructing spatially constrained IRIS regions and planning m
 
 ## Start here
 
-1. [Method framework](docs/method.md): notation, inputs/outputs, and algorithm steps.
-2. [Semantic constraints at the IRIS interface](docs/semantic_iris.md): the calculation, source-code reading order, and a runnable example.
-3. [Example input domains and IRIS matrices](docs/examples/semantic_iris_inspection.json).
+1. [Semantic constraints at the IRIS interface](docs/semantic_iris.md): the calculation, source-code reading order, and a runnable example.
+2. [Example input domains and IRIS matrices](docs/examples/semantic_iris_inspection.json).
 
 The central interface is:
 
@@ -78,4 +77,4 @@ python scripts/run_coupled_cafe.py \
 
 Local IRIS covers, finite candidate search, sampled checks, and an ideal planar-base simulation define the current scope. Higher-order trajectory smoothing, continuous-time access guarantees, and hardware validation remain open.
 
-Earlier experiment code and reports remain in the repository history and existing directories. The two documents above describe the review entry points and current limitations.
+Earlier experiment code and reports remain in the repository history and existing directories. The source guide above describes the review entry points and current limitations.
